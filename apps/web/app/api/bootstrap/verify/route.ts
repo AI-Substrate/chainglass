@@ -18,10 +18,11 @@
  *   re-prompted next-day. Server-side rotation still invalidates the
  *   cookie via HMAC mismatch — Max-Age is complementary, not conflicting.
  *
- * Rate limit: 5 attempts per client per 60s leaky-bucket, keyed on the TCP peer address
- * recorded by the socket-peer stamp (`@/lib/socket-peer`), never on client headers: keyed on
- * X-Forwarded-For, a client could rotate the header and get a fresh budget per request.
- * Requests without a stamped peer share one bucket. In-memory `Map`,
+ * Rate limit: 5 attempts per client per 60s leaky-bucket, keyed on the client address recorded by
+ * the socket-peer stamp (`@/lib/socket-peer` `requestClient`): the TCP peer, or behind the TLS
+ * front the front's client (trusted only when the request carries the front's secret). Never
+ * keyed on client headers: keyed on X-Forwarded-For, a client could rotate the header and get a
+ * fresh budget per request. Requests without a stamp share one bucket. In-memory `Map`,
  * cleared on process restart. Defence-in-depth — primary defence is 60-bit
  * code entropy. CSRF: SameSite=Lax blocks cross-site POST; Origin allowlist
  * is Phase 4's concern (terminal-WS).
@@ -36,7 +37,7 @@ import {
 import { type NextRequest, NextResponse } from 'next/server';
 
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
-import { socketPeerAddress } from '@/lib/socket-peer';
+import { requestClient } from '@/lib/socket-peer';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,8 +103,8 @@ function jsonError(
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Rate-limit key: the socket peer. Unstamped requests all share one bucket (fail closed).
-  const ip = socketPeerAddress(request.headers) ?? 'unstamped';
+  // Rate-limit key: the stamped client. Unstamped requests all share one bucket (fail closed).
+  const ip = requestClient(request.headers)?.address ?? 'unstamped';
   const now = Date.now();
 
   // Rate limit FIRST so a flood of bad bodies doesn't burn through file IO.

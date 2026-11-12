@@ -96,4 +96,38 @@ PORT=3000 HTTPS_PORT=3030 pnpm tsx apps/web/src/lib/tls-front.ts
 
 Env: `PORT` (Next, default 3000), `HTTPS_PORT` (default `PORT + 30`), `TLS_FRONT_HOST` (listen
 address, default all interfaces), `CHAINGLASS_TLS_CERT` / `CHAINGLASS_TLS_KEY` (default the
-`just certs` files).
+`just certs` files), `CHAINGLASS_FRONT_SECRET` (below).
+
+### Who the client is behind the front
+
+Next's socket-peer stamp (`apps/web/src/lib/socket-peer.ts`) records the socket peer (127.0.0.1
+behind the front) and the client. It takes the front's `X-Forwarded-For` as the client, and the
+request as https, only when the request carries `x-chainglass-front: <secret>` from a loopback
+peer. The secret is `CHAINGLASS_FRONT_SECRET`, made fresh by the recipe for each launch and given
+to Next and the front only. Next removes it from `process.env` at startup, so agents, terminals
+and streamd never inherit it, and the stamp drops the header before app code runs. The
+bootstrap-code rate limit keys on that client, so HTTPS clients don't share one budget. A direct
+client can't fake it: from the LAN its peer isn't loopback, and from this machine it doesn't know
+the secret. Without the secret everything still works, but every HTTPS client counts as 127.0.0.1
+for the rate limit.
+
+### Origin allowlists
+
+The terminal sidecar and streamd check each WebSocket upgrade's `Origin`. Behind the front the
+browser sends `https://<name>:<HTTPS_PORT>`, which neither allows by default. Each allowlist is
+an env var that REPLACES the server's defaults: `TERMINAL_WS_ALLOWED_ORIGINS` for the sidecar,
+and `CHAINGLASS_REMOTE_VIEW_ORIGINS` for streamd (Next hands it to streamd as
+`CG_REMOTE_VIEW__ALLOWED_ORIGINS` when it spawns it; Next itself must never carry a
+`CG_REMOTE_VIEW__*` variable, because its config loader rejects the name and its services fail to
+start). The HTTPS recipes set each to the server's usual list plus `https://<name>:<HTTPS_PORT>`
+for every DNS name and IPv4 address in the certificate:
+
+```bash
+PORT=3000 HTTPS_PORT=3030 pnpm tsx apps/web/src/lib/tls-front.ts origins terminal
+PORT=3000 HTTPS_PORT=3030 pnpm tsx apps/web/src/lib/tls-front.ts origins remote-view
+```
+
+The usual list is your own value of that variable if the recipe's environment sets one, else the
+server's default: for the sidecar `http://` localhost, 127.0.0.1 and every LAN IPv4 on `PORT`; for
+streamd `http://` localhost and 127.0.0.1 on `PORT`. (A value only in `apps/web/.env.local` is
+not read here: the recipe's variable wins over the file.)

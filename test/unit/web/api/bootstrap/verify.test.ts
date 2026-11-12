@@ -199,6 +199,26 @@ describe('POST /api/bootstrap/verify', () => {
     expect(sixth.status).toBe(429);
   });
 
+  it('429: behind the TLS front, each client has its own budget (all share the loopback peer)', async () => {
+    // What the stamp writes for a request the front relayed with its secret: peer 127.0.0.1,
+    // client = the front's X-Forwarded-For. Without the front's secret the client IS the peer.
+    const wrong = '7K2P-9XQM-3T8R';
+    const viaFront = (client: string) =>
+      new NextRequest(URL, {
+        method: 'POST',
+        body: JSON.stringify({ code: wrong }),
+        headers: {
+          'content-type': 'application/json',
+          ..._peerHeaderForTests('127.0.0.1', client, 'https'),
+        },
+      });
+    for (let i = 0; i < 5; i++) {
+      expect((await POST(viaFront('192.168.1.60'))).status).toBe(401);
+    }
+    expect((await POST(viaFront('192.168.1.60'))).status).toBe(429);
+    expect((await POST(viaFront('192.168.1.61'))).status).toBe(401);
+  });
+
   it('429: requests with no stamped peer share one budget', async () => {
     const wrong = '7K2P-9XQM-3T8R';
     const unstamped = (xff: string) =>

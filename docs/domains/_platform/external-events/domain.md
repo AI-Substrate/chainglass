@@ -17,7 +17,7 @@ Localhost plumbing that lets external processes (CLI tools, agents, scripts, sid
 ### Owns
 
 - Port discovery (`readServerInfo`, `discoverServerInfo`, `listServerInfo`, `writeServerInfo`, `removeServerInfo`, `currentServerPort`, `ServerInfo`)
-- Localhost-only API guard (`localhostGuard`, `isLocalhostRequest`) and the socket-peer stamp it trusts (`installPeerAddressStamp`, `socketPeerAddress`)
+- Localhost-only API guard (`localhostGuard`, `isLocalhostRequest`) and the socket-peer stamp it trusts (`installPeerAddressStamp`, `socketPeerAddress`, `requestClient`)
 - The TLS front for HTTPS mode (`startTlsFront`, `apps/web/src/lib/tls-front.ts`): forwards to the plain servers and owns the forwarded-header contract the guard relies on
 - Server boot hook in `instrumentation.ts` (installs the peer stamp; writes `.chainglass/servers/<port>.json`)
 
@@ -32,7 +32,7 @@ Localhost plumbing that lets external processes (CLI tools, agents, scripts, sid
 | Component | Role | Depends On |
 |-----------|------|------------|
 | `readServerInfo` / `discoverServerInfo` / `writeServerInfo` | Per-port server entries for CLI ↔ server | Node.js `fs` |
-| `installPeerAddressStamp` / `socketPeerAddress` | Record each request's TCP peer, tagged with a per-process token, before Next sees it | Node.js `http`/`https` servers |
+| `installPeerAddressStamp` / `socketPeerAddress` / `requestClient` | Record each request's TCP peer, and its client (the TLS front's client only when the request carries the launch's front secret from a loopback peer), tagged with a per-process token, before Next sees it | Node.js `http`/`https` servers |
 | `localhostGuard` / `isLocalhostRequest` | Reject non-localhost API calls (stamped loopback peer only) | `socketPeerAddress`, Next.js `NextRequest` |
 | `startTlsFront` | HTTPS mode: TLS on the public port, forwarding to Next, the terminal sidecar (port + 1500) and streamd (`/remote-view-ws` upgrades); overwrites `X-Forwarded-For` with the client's socket address | Node.js `https`/`tls`/`net` |
 
@@ -55,8 +55,9 @@ Localhost plumbing that lets external processes (CLI tools, agents, scripts, sid
 | `ServerInfo` | TypeScript type | CLI, Server | `{ port, pid, startedAt, mode, localToken? }` |
 | `localhostGuard()` | Function | `proxy.ts`, API route handlers | Returns 403 or null (pass) |
 | `isLocalhostRequest()` | Function | API route handlers | Boolean localhost check |
-| `installPeerAddressStamp()` | Function | `instrumentation.ts` `register()` | Patches `http`/`https` `Server.prototype.emit` (`request` + `upgrade`) to overwrite `x-chainglass-peer` with `<token> <socket.remoteAddress>` |
+| `installPeerAddressStamp()` | Function | `instrumentation.ts` `register()` | Patches `http`/`https` `Server.prototype.emit` (`request` + `upgrade`) to overwrite `x-chainglass-peer` with `<token> <peer> <client> <http\|https>` and drop `x-chainglass-front`; takes `CHAINGLASS_FRONT_SECRET` out of `process.env` |
 | `socketPeerAddress(headers)` | Function | `isLocalhostRequest` | The stamped peer, or null unless the header carries this process's token |
+| `requestClient(headers)` | Function | `/api/bootstrap/verify` (rate limit) | `{ address, secure }`: behind the verified TLS front its client and https, else the socket peer and the socket's protocol; null when unstamped |
 
 ## Dependencies
 

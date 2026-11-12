@@ -66,6 +66,8 @@ export interface ProductionDaemonConfig {
   innerBinaryPath: string;
   bootstrapPath: string;
   daemonPortOverride?: number;
+  /** `CHAINGLASS_REMOTE_VIEW_ORIGINS`: streamd's Origin allowlist (see DaemonManagerConfig). */
+  allowedOrigins?: string;
 }
 
 /**
@@ -83,7 +85,7 @@ export function resolveProductionDaemonConfig(
   deps: {
     cwd?: string;
     findRoot?: (startDir: string) => string;
-    // Only PORT / CG_REMOTE_VIEW__DAEMON_PORT are read — accept a partial env so callers (and tests)
+    // Only PORT / CG_REMOTE_VIEW__DAEMON_PORT / CHAINGLASS_REMOTE_VIEW_ORIGINS are read — accept a partial env so callers (and tests)
     // need not supply the repo-required NODE_ENV. `process.env` (a full ProcessEnv) still satisfies it.
     env?: Partial<NodeJS.ProcessEnv>;
   } = {}
@@ -100,6 +102,7 @@ export function resolveProductionDaemonConfig(
     daemonPortOverride: env.CG_REMOTE_VIEW__DAEMON_PORT
       ? Number(env.CG_REMOTE_VIEW__DAEMON_PORT)
       : undefined,
+    allowedOrigins: env.CHAINGLASS_REMOTE_VIEW_ORIGINS || undefined,
   };
 }
 
@@ -172,6 +175,7 @@ function buildProductionManager(
       bootstrapPath: config.bootstrapPath,
       expectedProtocolVersion: PROTOCOL_VERSION,
       daemonPortOverride: config.daemonPortOverride,
+      allowedOrigins: config.allowedOrigins,
     },
     {
       spawnDaemon: (binaryPath, args, extraEnv) => {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-import { socketPeerAddress } from './socket-peer';
+import { LOOPBACK_ADDRESSES, socketPeerAddress } from './socket-peer';
 
 /**
  * Localhost-only guard. `isLocalhostRequest` backs `requireLocalAuth` and the proxy's
@@ -17,19 +17,19 @@ import { socketPeerAddress } from './socket-peer';
  * 1. No stamped peer (stamp not installed, header missing or forged) → not local (fail closed).
  * 2. Peer not loopback → not local.
  * 3. A non-loopback X-Forwarded-For hop → not local: the peer is a reverse proxy relaying a
- *    remote client. (Next itself fills XFF with the socket address when the client sent none.)
+ *    remote client. (Next itself fills XFF with the socket address when the client sent none, and
+ *    the TLS front overwrites it with its client's address, so a LAN client behind the front is
+ *    refused here.)
  */
-
-const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
 export function isLocalhostRequest(request: NextRequest): boolean {
   const peer = socketPeerAddress(request.headers);
-  if (!peer || !LOOPBACK_IPS.has(peer)) return false;
+  if (!peer || !LOOPBACK_ADDRESSES.has(peer)) return false;
 
   const xff = request.headers.get('x-forwarded-for');
   if (xff) {
     for (const hop of xff.split(',')) {
-      if (!LOOPBACK_IPS.has(hop.trim())) return false;
+      if (!LOOPBACK_ADDRESSES.has(hop.trim())) return false;
     }
   }
   return true;

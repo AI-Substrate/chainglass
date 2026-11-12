@@ -19,13 +19,19 @@
  *    address as a non-loopback hop and refuses it.
  *  - `X-Forwarded-Proto: https`, `X-Forwarded-Host` (the client's Host) and `X-Forwarded-Port` (the
  *    public port) are set; `Host` is kept, so Next sees the public origin.
+ *  - With `frontSecret` (the launch's CHAINGLASS_FRONT_SECRET), requests to Next carry
+ *    `x-chainglass-front: <secret>`: Next's socket-peer stamp then trusts X-Forwarded-For as the
+ *    client (rate limit, cookie `Secure`). streamd never gets it. A client's own copy is dropped.
  *  - Responses are piped, never buffered: the live-update stream (`/api/events/mux`) is long-lived.
  *
  * Run: `pnpm tsx apps/web/src/lib/tls-front.ts` from the repo root (the recipes do).
+ * `… tls-front.ts origins terminal|remote-view` prints the Origin allowlist that server needs
+ * behind the front (`allowedOriginsBehindFront`).
  * Env: PORT (Next, default 3000), HTTPS_PORT (default PORT + 30), TLS_FRONT_HOST (listen address,
  * default all interfaces), CHAINGLASS_TLS_CERT / CHAINGLASS_TLS_KEY (default
- * apps/web/certificates/chainglass{,-key}.pem, made by `just certs`).
+ * apps/web/certificates/chainglass{,-key}.pem, made by `just certs`), CHAINGLASS_FRONT_SECRET.
  */
+import { X509Certificate } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
@@ -34,6 +40,7 @@ import { join } from 'node:path';
 import tls from 'node:tls';
 
 import { REMOTE_VIEW_WSS_PROXY_PATH } from '../features/088-remote-view/components/stream-url';
+import { FRONT_HEADER, FRONT_SECRET_ENV, PEER_HEADER, unmapIPv4 } from './socket-peer';
 
 /** The terminal sidecar listens at the Next port + 1500; the browser dials page port + 1500. */
 export const TERMINAL_PORT_OFFSET = 1500;
@@ -48,6 +55,8 @@ const CLIENT_FORWARDING_HEADERS = new Set([
   'x-forwarded-port',
   'forwarded',
   'x-real-ip',
+  FRONT_HEADER,
+  PEER_HEADER,
 ]);
 
 /** Hop-by-hop headers (RFC 9110 §7.6.1): they describe one connection and are never forwarded. */
@@ -72,6 +81,8 @@ export interface TlsFrontOptions {
   nextPort: number;
   /** streamd's port for a remote-view upgrade, or null when it is unknown. Read per upgrade. */
   remoteViewPort: () => number | null;
+  /** This launch's CHAINGLASS_FRONT_SECRET, shared with the Next server it fronts. */
+  frontSecret?: string;
 }
 
 export interface TlsFront {
@@ -83,18 +94,17 @@ export interface TlsFront {
 
 /** The client's address as Next should see it: IPv4-mapped IPv6 (`::ffff:a.b.c.d`) unwrapped. */
 export function clientAddress(socket: net.Socket): string {
-  const address = socket.remoteAddress ?? '';
-  return address.startsWith('::ffff:') && net.isIPv4(address.slice(7)) ? address.slice(7) : address;
+  return unmapIPv4(socket.remoteAddress ?? '');
 }
 
 /**
  * Rewrite a client's raw request headers for the upstream: drop the client's forwarding headers
- * (and hop-by-hop ones unless `keepUpgrade`), then append the front's own. Raw pairs keep repeated
- * headers intact.
+ * (and hop-by-hop ones unless `keepUpgrade`), then append the front's own, plus the front's
+ * secret marker when given. Raw pairs keep repeated headers intact.
  */
 export function forwardedHeaders(
   rawHeaders: readonly string[],
-  opts: { client: string; publicPort: number; keepUpgrade: boolean }
+  opts: { client: string; publicPort: number; keepUpgrade: boolean; frontSecret?: string }
 ): string[] {
   const connectionTokens = new Set<string>();
   let host: string | undefined;
@@ -116,6 +126,7 @@ export function forwardedHeaders(
   out.push('X-Forwarded-For', opts.client, 'X-Forwarded-Proto', 'https');
   out.push('X-Forwarded-Port', String(opts.publicPort));
   if (host) out.push('X-Forwarded-Host', host);
+  if (opts.frontSecret) out.push(FRONT_HEADER, opts.frontSecret);
   return out;
 }
 
@@ -176,6 +187,7 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
         client: clientAddress(req.socket),
         publicPort,
         keepUpgrade: false,
+        frontSecret: opts.frontSecret,
       }),
       agent,
     });
@@ -202,7 +214,8 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
     const url = req.url ?? '/';
     let port: number | null = opts.nextPort;
     let path = url;
-    if (isRemoteViewPath(url)) {
+    const toStreamd = isRemoteViewPath(url);
+    if (toStreamd) {
       port = opts.remoteViewPort();
       path = url.slice(REMOTE_VIEW_WSS_PROXY_PATH.length) || '/';
       if (!path.startsWith('/')) path = `/${path}`;
@@ -215,6 +228,7 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
       client: clientAddress(socket),
       publicPort,
       keepUpgrade: true,
+      frontSecret: toStreamd ? undefined : opts.frontSecret,
     });
     const upstream = net.connect(port, '127.0.0.1');
     upstream.once('connect', () => {
@@ -283,6 +297,60 @@ export function readRemoteViewPort(
   return nextPort + REMOTE_VIEW_PORT_OFFSET;
 }
 
+/** `https://<name>:<port>` for every DNS name and IPv4 address the certificate covers. */
+export function certOrigins(certPem: string | Buffer, port: number): string[] {
+  const out: string[] = [];
+  for (const entry of (new X509Certificate(certPem).subjectAltName ?? '').split(', ')) {
+    if (entry.startsWith('DNS:')) out.push(`https://${entry.slice(4)}:${port}`);
+    const ip = entry.startsWith('IP Address:') ? entry.slice(11) : '';
+    // IPv6 stays opt-in, as in the sidecar's own default allowlist.
+    if (net.isIPv4(ip)) out.push(`https://${ip}:${port}`);
+  }
+  return out;
+}
+
+function splitOrigins(value: string | undefined): string[] | null {
+  const list = (value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return list.length > 0 ? list : null;
+}
+
+/**
+ * The Origin allowlist a server behind the front needs: what it allows today plus
+ * `https://<cert name>:<httpsPort>`. The terminal sidecar's TERMINAL_WS_ALLOWED_ORIGINS and
+ * streamd's allowlist (CHAINGLASS_REMOTE_VIEW_ORIGINS on the web server, which hands it to streamd
+ * at spawn) each REPLACE that server's defaults, so the defaults are spelled out here: an
+ * operator's own value if set, else the sidecar's default (localhost, 127.0.0.1 and every LAN IPv4
+ * on the Next port) or streamd's (localhost and 127.0.0.1 on the Next port).
+ */
+export async function allowedOriginsBehindFront(
+  server: 'terminal' | 'remote-view',
+  opts: {
+    certPem: string | Buffer;
+    httpsPort: number;
+    nextPort: number;
+    env: Partial<NodeJS.ProcessEnv>;
+  }
+): Promise<string[]> {
+  let base: string[];
+  if (server === 'terminal') {
+    const { buildDefaultAllowedOrigins, getLocalNetworkHosts } = await import(
+      '../features/064-terminal/server/terminal-auth'
+    );
+    base = splitOrigins(opts.env.TERMINAL_WS_ALLOWED_ORIGINS) ?? [
+      ...buildDefaultAllowedOrigins(String(opts.nextPort), false, getLocalNetworkHosts()),
+    ];
+  } else {
+    base = splitOrigins(opts.env.CHAINGLASS_REMOTE_VIEW_ORIGINS) ?? [
+      `http://localhost:${opts.nextPort}`,
+      `http://127.0.0.1:${opts.nextPort}`,
+    ];
+  }
+  return [...new Set([...base, ...certOrigins(opts.certPem, opts.httpsPort)])];
+}
+
 // ============ CLI entry point ============
 
 if (process.argv[1]?.endsWith('tls-front.ts')) {
@@ -291,6 +359,18 @@ if (process.argv[1]?.endsWith('tls-front.ts')) {
   const certPath = process.env.CHAINGLASS_TLS_CERT ?? 'apps/web/certificates/chainglass.pem';
   const keyPath = process.env.CHAINGLASS_TLS_KEY ?? 'apps/web/certificates/chainglass-key.pem';
   const root = process.cwd();
+  const server = process.argv[3];
+  if (process.argv[2] === 'origins' && (server === 'terminal' || server === 'remote-view')) {
+    // `tls-front.ts origins terminal|remote-view`: the allowlist for that server's env var.
+    const origins = await allowedOriginsBehindFront(server, {
+      certPem: readFileSync(certPath),
+      httpsPort,
+      nextPort,
+      env: process.env,
+    });
+    console.log(origins.join(','));
+    process.exit(0);
+  }
   const front = await startTlsFront({
     cert: readFileSync(certPath),
     key: readFileSync(keyPath),
@@ -298,6 +378,7 @@ if (process.argv[1]?.endsWith('tls-front.ts')) {
     httpsPort,
     nextPort,
     remoteViewPort: () => readRemoteViewPort(root, nextPort, process.env),
+    frontSecret: process.env[FRONT_SECRET_ENV] || undefined,
   });
   console.log(
     `[tls-front] https://*:${front.httpsPort} → http://127.0.0.1:${nextPort}; ` +

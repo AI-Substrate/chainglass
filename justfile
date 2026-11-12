@@ -31,6 +31,8 @@ dev:
     NAMES=next,terminal COLORS=blue,green FRONT=()
     if [ -n "${HTTPS_PORT:-}" ]; then
       just _require-certs
+      HTTPS_ENV=$(just _https-env $NEXT_PORT)
+      eval "$HTTPS_ENV"
       NAMES=$NAMES,https COLORS=$COLORS,magenta FRONT=("pnpm tsx apps/web/src/lib/tls-front.ts")
       # The front's ports are never taken over from another server (prod rules), even in dev.
       just _claim-ports prod $HTTPS_PORT $((HTTPS_PORT + 1500))
@@ -42,7 +44,7 @@ dev:
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "$NAMES" --prefix-colors "$COLORS" \
         "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT" \
-        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts" \
+        "env -u CHAINGLASS_FRONT_SECRET pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts" \
         ${FRONT[@]+"${FRONT[@]}"}
 
 # The terminal sidecar loads apps/web/.env.local with `tsx --env-file`, which exits at once when
@@ -163,6 +165,23 @@ _require-certs:
       exit 1
     fi
 
+# Env for the TLS front, printed for `eval` by `dev` / `prod-serve` when HTTPS_PORT is set:
+# - CHAINGLASS_FRONT_SECRET: fresh per launch. Next trusts the front's X-Forwarded-For (client
+#   address for the rate limit, https for cookie Secure) only with it; Next and the front get it,
+#   the terminal sidecar (`env -u`) and Next's children never do (socket-peer.ts).
+# - TERMINAL_WS_ALLOWED_ORIGINS (sidecar) / CHAINGLASS_REMOTE_VIEW_ORIGINS (Next hands it to
+#   streamd): each server's usual allowlist plus https://<cert name>:HTTPS_PORT
+#   (`tls-front.ts origins`).
+_https-env next_port:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    SECRET=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
+    TERMINAL=$(PORT={{next_port}} pnpm -s tsx apps/web/src/lib/tls-front.ts origins terminal)
+    REMOTE_VIEW=$(PORT={{next_port}} pnpm -s tsx apps/web/src/lib/tls-front.ts origins remote-view)
+    echo "export CHAINGLASS_FRONT_SECRET=$SECRET"
+    echo "export TERMINAL_WS_ALLOWED_ORIGINS=$TERMINAL"
+    echo "export CHAINGLASS_REMOTE_VIEW_ORIGINS=$REMOTE_VIEW"
+
 # Build all packages
 build:
     pnpm turbo build
@@ -227,6 +246,8 @@ prod-serve:
     NAMES=next,terminal COLORS=blue,green FRONT=() FRONT_PORTS=""
     if [ -n "${HTTPS_PORT:-}" ]; then
       just _require-certs
+      HTTPS_ENV=$(just _https-env $NEXT_PORT)
+      eval "$HTTPS_ENV"
       NAMES=$NAMES,https COLORS=$COLORS,magenta FRONT=("pnpm tsx apps/web/src/lib/tls-front.ts")
       FRONT_PORTS="$HTTPS_PORT $((HTTPS_PORT + 1500))"
     fi
@@ -239,7 +260,7 @@ prod-serve:
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
       pnpm concurrently --names "$NAMES" --prefix-colors "$COLORS" \
         "cd apps/web && CHAINGLASS_DIST_DIR=$DIST pnpm exec next start --port $NEXT_PORT" \
-        "pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts" \
+        "env -u CHAINGLASS_FRONT_SECRET pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts" \
         ${FRONT[@]+"${FRONT[@]}"}
 
 # HTTPS beside plain HTTP: `just prod` plus the TLS front (docs/how/dev/https.md).

@@ -94,6 +94,8 @@ describe('remote-view daemon manager', () => {
       registryPort?: number;
       /** `CG_REMOTE_VIEW__DAEMON_PORT` override → the manager's `--port` arg. */
       daemonPortOverride?: number;
+      /** streamd Origin allowlist → CG_REMOTE_VIEW__ALLOWED_ORIGINS in the spawn env. */
+      allowedOrigins?: string;
       /** Health each freshly-spawned daemon answers with (by 1-based spawn count); default v1. */
       spawnHealth?: (spawnCount: number) => DaemonHealth;
       /** Replace the default "bring up a fresh daemon" spawn behaviour (e.g. a spawn that never boots). */
@@ -162,6 +164,7 @@ describe('remote-view daemon manager', () => {
         innerBinaryPath: INNER_BINARY,
         bootstrapPath: BOOTSTRAP,
         daemonPortOverride: opts.daemonPortOverride,
+        allowedOrigins: opts.allowedOrigins,
         expectedProtocolVersion: EXPECTED_PROTOCOL,
         readinessTimeoutMs: 1000,
         pollIntervalMs: 10,
@@ -413,6 +416,21 @@ describe('remote-view daemon manager', () => {
     await manager.ensureDaemon({ windowId: WINDOW_ID });
 
     expect(spawns[0].args).toContain('7777');
+  });
+
+  it('hands streamd the configured Origin allowlist, and leaves its default alone otherwise', async () => {
+    // HTTPS mode: behind the TLS front the browser's Origin is https://<name>:<https port>, which
+    // streamd's default (localhost on the web port) refuses. The web server cannot hold
+    // CG_REMOTE_VIEW__ALLOWED_ORIGINS in its own env (the config loader rejects it), so the manager
+    // sets it on the daemon at spawn.
+    const origins = 'http://localhost:3000,https://ops.osk.lan:3030';
+    const withList = build({ allowedOrigins: origins });
+    await withList.manager.ensureDaemon({ windowId: WINDOW_ID });
+    expect(withList.spawns[0].env?.CG_REMOTE_VIEW__ALLOWED_ORIGINS).toBe(origins);
+
+    const without = build();
+    await without.manager.ensureDaemon({ windowId: WINDOW_ID });
+    expect(without.spawns[0].env).not.toHaveProperty('CG_REMOTE_VIEW__ALLOWED_ORIGINS');
   });
 
   it('reuses the daemon for the SAME window, respawns for a DIFFERENT one (capture is fixed at spawn)', async () => {

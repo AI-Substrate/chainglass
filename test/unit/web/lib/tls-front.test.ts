@@ -6,6 +6,10 @@
  * upgrade reaches the plain server with the client's socket address in X-Forwarded-For (never the
  * client's own value), responses stream without buffering, remote view gets its prefix stripped
  * and only upgrades, and the terminal port tunnels bytes to the sidecar port.
+ *
+ * Behind the front, a stamped "Next" (socket-peer.ts) must: still refuse a LAN client on
+ * localhost-only routes; trust the front's client address and https only with the launch secret
+ * from a loopback peer; and never let a direct client fake the marker.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,11 +20,23 @@ import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import tls from 'node:tls';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { NextRequest } from 'next/server';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { isLocalhostRequest } from '../../../../apps/web/src/lib/localhost-guard';
+import {
+  FRONT_HEADER,
+  FRONT_SECRET_ENV,
+  _uninstallPeerAddressStampForTests,
+  installPeerAddressStamp,
+  requestClient,
+  socketPeerAddress,
+} from '../../../../apps/web/src/lib/socket-peer';
 import {
   TERMINAL_PORT_OFFSET,
   type TlsFront,
+  allowedOriginsBehindFront,
+  certOrigins,
   readRemoteViewPort,
   startTlsFront,
 } from '../../../../apps/web/src/lib/tls-front';
@@ -104,7 +120,8 @@ async function echoUpstream(): Promise<{ server: http.Server; port: number }> {
 
 async function front(
   nextPort: number,
-  remoteViewPort: () => number | null = () => null
+  remoteViewPort: () => number | null = () => null,
+  frontSecret?: string
 ): Promise<TlsFront> {
   const f = await startTlsFront({
     cert,
@@ -113,6 +130,7 @@ async function front(
     httpsPort: 0,
     nextPort,
     remoteViewPort,
+    frontSecret,
   });
   cleanups.push(() => f.close());
   return f;
@@ -407,3 +425,226 @@ describe('readRemoteViewPort', () => {
     }
   });
 });
+
+describe('Origin allowlists behind the front', () => {
+  const certNames = ['localhost', '127.0.0.1', ...(lanAddress ? [lanAddress] : [])];
+
+  it('certOrigins: https://<name>:<port> for each DNS name and IPv4 address in the cert', () => {
+    expect(certOrigins(cert, 3030)).toEqual(certNames.map((n) => `https://${n}:3030`));
+  });
+
+  it('terminal: the sidecar default (http on the Next port, LAN included) plus the https names', async () => {
+    const origins = await allowedOriginsBehindFront('terminal', {
+      certPem: cert,
+      httpsPort: 3030,
+      nextPort: 3000,
+      env: {},
+    });
+    expect(origins).toEqual(
+      expect.arrayContaining(['http://localhost:3000', 'http://127.0.0.1:3000'])
+    );
+    if (lanAddress) expect(origins).toContain(`http://${lanAddress}:3000`);
+    expect(origins).toEqual(expect.arrayContaining(certNames.map((n) => `https://${n}:3030`)));
+    expect(origins.filter((o) => o.startsWith('https://')).every((o) => o.endsWith(':3030'))).toBe(
+      true
+    );
+  });
+
+  it("an operator's own allowlist is kept, not replaced by the defaults", async () => {
+    const origins = await allowedOriginsBehindFront('terminal', {
+      certPem: cert,
+      httpsPort: 3030,
+      nextPort: 3000,
+      env: { TERMINAL_WS_ALLOWED_ORIGINS: 'https://remote.example.com' },
+    });
+    expect(origins).toEqual([
+      'https://remote.example.com',
+      ...certNames.map((n) => `https://${n}:3030`),
+    ]);
+  });
+
+  it("remote view: streamd's default (localhost on the Next port) plus the https names", async () => {
+    const origins = await allowedOriginsBehindFront('remote-view', {
+      certPem: cert,
+      httpsPort: 3030,
+      nextPort: 3000,
+      env: {},
+    });
+    expect(origins).toEqual([
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      ...certNames.map((n) => `https://${n}:3030`),
+    ]);
+  });
+});
+
+describe('behind the front: what a stamped Next server decides', () => {
+  const SECRET = 'front-secret-for-tests-0123456789abcdef';
+
+  afterEach(() => {
+    _uninstallPeerAddressStampForTests();
+    vi.unstubAllEnvs();
+  });
+
+  /** A stamped plain server ("Next") answering with the guard's verdict and the stamped client. */
+  async function stampedNext(host = '0.0.0.0'): Promise<number> {
+    const server = http.createServer((req, res) => {
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(req.headers))
+        if (typeof v === 'string') headers.set(k, v);
+      const nextReq = new NextRequest(`http://${req.headers.host}${req.url}`, { headers });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          local: isLocalhostRequest(nextReq),
+          peer: socketPeerAddress(headers),
+          client: requestClient(headers),
+          markerSeen: req.headers[FRONT_HEADER] !== undefined,
+        })
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, host, resolve));
+    cleanups.push(closeServer(server));
+    return (server.address() as AddressInfo).port;
+  }
+
+  it('a client has one key direct or through the front, on a dual-stack listener like Next', async () => {
+    // Next listens on `::`; an IPv4 client's socket address there is `::ffff:a.b.c.d`, while the
+    // front forwards `a.b.c.d`. Both must key the same rate-limit bucket.
+    installWithSecret();
+    const port = await stampedNext('::');
+    const direct = await plainGet('127.0.0.1', port);
+    expect(direct.peer).toBe('::ffff:127.0.0.1');
+    expect(direct.client).toEqual({ address: '127.0.0.1', secure: false });
+    expect(direct.local).toBe(true);
+    const f = await front(port, () => null, SECRET);
+    const viaFront = JSON.parse((await request('127.0.0.1', f.httpsPort, { path: '/api/x' })).body);
+    expect(viaFront.client).toEqual({ address: '127.0.0.1', secure: true });
+  });
+
+  function installWithSecret(): void {
+    vi.stubEnv(FRONT_SECRET_ENV, SECRET);
+    installPeerAddressStamp();
+  }
+
+  function plainGet(host: string, port: number, headers: Record<string, string> = {}) {
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      http
+        .get({ host, port, path: '/api/workspaces/demo/files/open', headers }, (res) => {
+          let body = '';
+          res.on('data', (c) => {
+            body += c;
+          });
+          res.on('end', () => resolve(JSON.parse(body)));
+        })
+        .on('error', reject);
+    });
+  }
+
+  it('a browser on this machine through the front is local; its client is 127.0.0.1 over https', async () => {
+    installWithSecret();
+    const f = await front(await stampedNext(), () => null, SECRET);
+    const r = JSON.parse((await request('127.0.0.1', f.httpsPort, { path: '/api/x' })).body);
+    expect(r).toEqual({
+      local: true,
+      peer: '127.0.0.1',
+      client: { address: '127.0.0.1', secure: true },
+      markerSeen: false,
+    });
+  });
+
+  it('install takes the secret out of process.env (child processes never inherit it)', () => {
+    installWithSecret();
+    expect(process.env[FRONT_SECRET_ENV]).toBeUndefined();
+  });
+
+  it.skipIf(!lanAddress)(
+    'a LAN client through the front is refused by the guard and keyed on its own address',
+    async () => {
+      installWithSecret();
+      const f = await front(await stampedNext(), () => null, SECRET);
+      const r = JSON.parse(
+        (
+          await request(lanAddress as string, f.httpsPort, {
+            path: '/api/x',
+            headers: { 'x-forwarded-for': '127.0.0.1', host: 'localhost' },
+          })
+        ).body
+      );
+      expect(r).toEqual({
+        local: false,
+        peer: '127.0.0.1',
+        client: { address: lanAddress, secure: true },
+        markerSeen: false,
+      });
+    }
+  );
+
+  it.skipIf(!lanAddress)(
+    'a direct LAN client cannot fake the front, even holding the real secret',
+    async () => {
+      installWithSecret();
+      const r = await plainGet(lanAddress as string, await stampedNext(), {
+        [FRONT_HEADER]: SECRET,
+        'x-forwarded-for': '10.9.9.9',
+        'x-forwarded-proto': 'https',
+      });
+      expect(r).toEqual({
+        local: false,
+        peer: lanAddress,
+        client: { address: lanAddress, secure: false },
+        markerSeen: false,
+      });
+    }
+  );
+
+  it('a direct loopback client with a wrong marker is its own socket peer, over http', async () => {
+    installWithSecret();
+    const r = await plainGet('127.0.0.1', await stampedNext(), {
+      [FRONT_HEADER]: 'guessed-secret',
+      'x-forwarded-for': '10.9.9.9',
+      'x-forwarded-proto': 'https',
+    });
+    expect(r.client).toEqual({ address: '127.0.0.1', secure: false });
+    expect(r.markerSeen).toBe(false);
+  });
+
+  it('a front without the secret is not trusted: every client is the shared loopback peer', async () => {
+    installWithSecret();
+    const f = await front(await stampedNext(), () => null);
+    const r = JSON.parse((await request('127.0.0.1', f.httpsPort, { path: '/api/x' })).body);
+    expect(r.client).toEqual({ address: '127.0.0.1', secure: false });
+  });
+
+  it('the secret never reaches streamd', async () => {
+    installWithSecret();
+    const streamd = await upgradeUpstreamHeaders();
+    const f = await front(await stampedNext(), () => streamd.port, SECRET);
+    const r = await upgrade(f.httpsPort, '/remote-view-ws/stream');
+    cleanups.push(async () => {
+      r.socket.destroy();
+    });
+    expect(r.status).toBe(101);
+    expect(streamd.headers[0]?.[FRONT_HEADER]).toBeUndefined();
+  });
+});
+
+/** An upgrade upstream that records the headers it saw. */
+async function upgradeUpstreamHeaders(): Promise<{
+  port: number;
+  headers: http.IncomingHttpHeaders[];
+}> {
+  const headers: http.IncomingHttpHeaders[] = [];
+  const server = http.createServer((_req, res) => res.end());
+  server.on('upgrade', (req, socket) => {
+    headers.push(req.headers);
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n'
+    );
+    // http.Server sockets are half-open: echo (and so end) when the client ends.
+    socket.pipe(socket);
+  });
+  const port = await listen(server);
+  cleanups.push(closeServer(server));
+  return { port, headers };
+}
