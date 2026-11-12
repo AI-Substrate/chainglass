@@ -1,0 +1,19 @@
+.harness/government/reports/https-mode-plan-2026-11-12.md
+  s_1e57958f2775ee::t_cca9a93ad7c121 98-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7bdfa5a0eb3477c5252063179f6e0f8f5bb97019",
+  "prompts": {},
+  "sessions": {
+    "s_1e57958f2775ee": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "f44f5c5e-651b-4167-88b4-a84fe5b2f313",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
