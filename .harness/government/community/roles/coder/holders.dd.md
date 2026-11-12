@@ -23,3 +23,4 @@
 | — | pij-frequent-clownfish | omp | 01a1cd15-5e16-75c5-91cb-f41a4ca46e38 | ops.osk.lan | home-prefetch | 2026-11-12T00:08:31.152Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/home-prefetch.md | — |
 | — | pij-professional-crane | omp | 01a1cd15-7427-719e-807b-8754fad61481 | ops.osk.lan | dev-beside-prod | 2026-11-12T00:08:32.502Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/dev-beside-prod.md | — |
 | — | pij-formal-mole | omp | 01a1cd15-878a-743e-847a-220c6b2c5e69 | ops.osk.lan | trace-idle | 2026-11-12T00:08:33.983Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/trace-idle.md | — |
+| — | pij-ambitious-warbler | omp | 01a1cd46-cb8e-7586-9988-37bc29ccc9ee | ops.osk.lan | ctx-max | 2026-11-12T01:02:17.364Z | — | pij-outer-bobcat | — | Jordan: context bar shows the fullest agent in a multi-pane window | — |

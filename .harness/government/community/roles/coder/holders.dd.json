@@ -62,6 +62,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-formal-mole",
 					"why": "Nav speed wave 1: briefs/nav-requests/trace-idle.md"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T01:02:17.364Z",
+					"harness": "omp",
+					"harness_session": "01a1cd46-cb8e-7586-9988-37bc29ccc9ee",
+					"instance_key": "ctx-max",
+					"machine": "ops.osk.lan",
+					"seat": "pij-ambitious-warbler",
+					"why": "Jordan: context bar shows the fullest agent in a multi-pane window"
 				}
 			]
 		}
