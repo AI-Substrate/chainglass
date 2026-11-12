@@ -97,6 +97,57 @@ describe('window seats and last lines', () => {
     });
   });
 
+  it('reports the fullest seat across a tiled window, keeping the first seat as its identity', async () => {
+    const exec = async (_: string, args: string[]) =>
+      args[0] === 'list-windows' ? '@1\t1\t0\ttiled\n@2\t2\t0\tpair\n' : '';
+    const execAsync = async (command: string, args: string[]) => {
+      if (command === 'ps') {
+        return [100, 200, 300, 400, 500]
+          .flatMap((pid) => [`${pid} 1 0:00.10 -zsh`, `${pid + 1} ${pid} 0:01.00 claude`])
+          .join('\n');
+      }
+      // @1: three agent panes; @2: a seat without context, then one with it.
+      if (args[0] === 'list-panes') {
+        return '@1\t100\t1\t%1\n@1\t200\t1\t%2\n@1\t300\t1\t%3\n@2\t400\t1\t%4\n@2\t500\t1\t%5\n';
+      }
+      return '';
+    };
+    const readSeats = async () => [
+      { id: 'pij-a', pane: '%1', pid: 101, context: { usedTokens: 200_000, windowTokens: 1e6 } },
+      { id: 'pij-b', pane: '%2', pid: 201, context: { usedTokens: 720_000, windowTokens: 1e6 } },
+      {
+        id: 'pij-c',
+        pane: '%3',
+        pid: 301,
+        context: { usedTokens: 160_000, windowTokens: 400_000 },
+      },
+      { id: 'pij-d', pane: '%4', pid: 401, context: null },
+      { id: 'pij-e', pane: '%5', pid: 501, context: { usedTokens: 300, windowTokens: 1_000 } },
+    ];
+    const manager = new TmuxSessionManager(exec, (() => null) as never, execAsync, readSeats);
+
+    await manager.listWindows('main');
+    await vi.waitFor(() =>
+      expect((manager as unknown as { sampling: Set<string> }).sampling.size).toBe(0)
+    );
+
+    const [tiled, pair] = await manager.listWindows('main');
+    expect(tiled.seatId).toBe('pij-a');
+    expect(tiled.context).toEqual({
+      usedTokens: 720_000,
+      windowTokens: 1e6,
+      seatId: 'pij-b',
+      seats: 3,
+    });
+    expect(pair.seatId).toBe('pij-d');
+    expect(pair.context).toEqual({
+      usedTokens: 300,
+      windowTokens: 1_000,
+      seatId: 'pij-e',
+      seats: 1,
+    });
+  });
+
   it('names a seat window that nobody has named after its seat, and leaves named ones alone', async () => {
     const renames: string[][] = [];
     const exec = async (_: string, args: string[]) =>

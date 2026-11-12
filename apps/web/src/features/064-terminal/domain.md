@@ -71,7 +71,7 @@ The sidecar joins windows to seats: it reads the pij-rs state cards (`/v1/cards`
 
 ### Context-fill bar
 
-The same card join carries each seat's context use (`sessionStatus.status.contextUsedTokens` over `contextWindowTokens`; `/v1/seats` does not carry it) as `TerminalWindow.context`. Window-strip buttons draw it as a 3px vertical bar on their right edge, filled from the bottom; overview rows draw the same bar (`ContextFillBar`) at their right edge. Bands live in `CONTEXT_FILL_BANDS` (`lib/context-fill.ts`): green under 50%, yellow 50–70%, orange 70–85%, red from 85%. A seat that reports no context, or a window with no seat, draws no bar. The tooltip and accessible label read "context 46% (468k / 1.0M)".
+The same card join carries each seat's context use (`sessionStatus.status.contextUsedTokens` over `contextWindowTokens`; `/v1/seats` does not carry it) as `TerminalWindow.context`. A window tiled into several agent panes keeps its first seat as its identity (`seatId`, window naming, badges) but reports the context of its fullest seat by fill (`fullestContext`; Jordan, 2026-11-12); seats without context don't count. Window-strip buttons draw it as a 3px vertical bar on their right edge, filled from the bottom; overview rows draw the same bar (`ContextFillBar`) at their right edge. Bands live in `CONTEXT_FILL_BANDS` (`lib/context-fill.ts`): green under 50%, yellow 50–70%, orange 70–85%, red from 85%. A window where no seat reports context, or with no seat, draws no bar. The tooltip and accessible label read "context 46% (468k / 1.0M)", plus ", fullest of 3 agents: pij-foo" when several seats report.
 
 ### Path links
 

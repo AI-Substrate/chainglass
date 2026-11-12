@@ -2,13 +2,22 @@
  * How full a window's agent context is: the pij seat's used tokens over its context window,
  * drawn as a thin vertical bar on the window strip's buttons and in the window overview
  * (Jordan, 2026-11-11). pij reports both numbers on each seat's state card (`/v1/cards`); a seat
- * without both draws no bar at all, never an empty one.
+ * without both draws no bar at all, never an empty one. A window tiled into several agent panes
+ * shows its fullest seat (Jordan, 2026-11-12).
  */
 
 /** A seat's context use, in tokens. */
 export interface SeatContext {
   usedTokens: number;
   windowTokens: number;
+}
+
+/** A window's context: its fullest seat's, and how many of the window's seats report one. */
+export interface WindowContext extends SeatContext {
+  /** The seat with the fullest context (not necessarily the window's identity seat). */
+  seatId: string;
+  /** Seats in the window that report context; 1 for a window with one agent. */
+  seats: number;
 }
 
 export type ContextBand = 'green' | 'yellow' | 'orange' | 'red';
@@ -48,6 +57,23 @@ export function contextFill(context: SeatContext): number {
   return Math.min(1, Math.max(0, context.usedTokens / context.windowTokens));
 }
 
+/**
+ * The fullest of a window's seats, by fill. Seats without context are skipped; none reporting
+ * gives `null`. A tie keeps the earlier seat.
+ */
+export function fullestContext(
+  seats: ReadonlyArray<{ id: string; context: SeatContext | null }>
+): WindowContext | null {
+  let fullest: { id: string; context: SeatContext } | null = null;
+  let reporting = 0;
+  for (const { id, context } of seats) {
+    if (!context) continue;
+    reporting++;
+    if (!fullest || contextFill(context) > contextFill(fullest.context)) fullest = { id, context };
+  }
+  return fullest && { ...fullest.context, seatId: fullest.id, seats: reporting };
+}
+
 export function contextBand(fill: number): ContextBand {
   let band: ContextBand = CONTEXT_FILL_BANDS[0].band;
   for (const threshold of CONTEXT_FILL_BANDS) {
@@ -63,7 +89,13 @@ export function formatTokens(tokens: number): string {
   return String(Math.round(tokens));
 }
 
-/** "context 46% (468k / 1.0M)". Floored, so a fill just under a band edge never reads as on it. */
-export function contextLabel(context: SeatContext): string {
-  return `context ${Math.floor(contextFill(context) * 100)}% (${formatTokens(context.usedTokens)} / ${formatTokens(context.windowTokens)})`;
+/**
+ * "context 46% (468k / 1.0M)", plus ", fullest of 3 agents: pij-foo" when several seats report.
+ * Floored, so a fill just under a band edge never reads as on it.
+ */
+export function contextLabel(context: WindowContext): string {
+  const label = `context ${Math.floor(contextFill(context) * 100)}% (${formatTokens(context.usedTokens)} / ${formatTokens(context.windowTokens)})`;
+  return context.seats > 1
+    ? `${label}, fullest of ${context.seats} agents: ${context.seatId}`
+    : label;
 }

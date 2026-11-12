@@ -14,6 +14,13 @@ const seat = (used: unknown, window: unknown) => ({
     status: { contextUsedTokens: tokens(used), contextWindowTokens: tokens(window) },
   },
 });
+/** A window whose only reporting seat is `pij-a`. */
+const one = (usedTokens: number, windowTokens: number) => ({
+  usedTokens,
+  windowTokens,
+  seatId: 'pij-a',
+  seats: 1,
+});
 
 describe('context fill', () => {
   it('maps fill to bands at their lower edges', () => {
@@ -32,12 +39,14 @@ describe('context fill', () => {
   it('clamps fill to 0–100% and labels the real token counts, floored to stay inside the band', () => {
     expect(contextFill({ usedTokens: 1_200_000, windowTokens: 1_000_000 })).toBe(1);
     expect(contextFill({ usedTokens: -5, windowTokens: 1_000 })).toBe(0);
-    expect(contextLabel({ usedTokens: 468_000, windowTokens: 1_000_000 })).toBe(
-      'context 46% (468k / 1.0M)'
-    );
-    expect(contextLabel({ usedTokens: 4_997, windowTokens: 10_000 })).toBe(
-      'context 49% (5k / 10k)'
-    );
+    expect(contextLabel(one(468_000, 1_000_000))).toBe('context 46% (468k / 1.0M)');
+    expect(contextLabel(one(4_997, 10_000))).toBe('context 49% (5k / 10k)');
+  });
+
+  it('names the fullest seat and the count only when several seats report', () => {
+    expect(
+      contextLabel({ usedTokens: 720_000, windowTokens: 1_000_000, seatId: 'pij-foo', seats: 3 })
+    ).toBe('context 72% (720k / 1.0M), fullest of 3 agents: pij-foo');
   });
 
   it('reads a seat only when both counts are reported and the window is positive', () => {
@@ -56,7 +65,7 @@ describe('context fill', () => {
     const { container, rerender } = render(<ContextFillBar context={null} className="" />);
     expect(container.firstChild).toBeNull();
 
-    rerender(<ContextFillBar context={{ usedTokens: 900, windowTokens: 1_000 }} className="" />);
+    rerender(<ContextFillBar context={one(900, 1_000)} className="" />);
     const bar = container.querySelector('[data-context-band]');
     expect(bar?.getAttribute('data-context-band')).toBe('red');
     expect(bar?.getAttribute('aria-label')).toBe('context 90% (900 / 1k)');

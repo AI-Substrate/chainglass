@@ -15,6 +15,7 @@ import { isAbsolute, normalize, relative, resolve } from 'node:path';
 import { type AgentKind, findAgent, processLabel } from '../lib/agent-kind';
 import { findBackgroundJobs } from '../lib/background-jobs';
 import { claudeScreenAsksQuestion } from '../lib/claude-question';
+import { type WindowContext, fullestContext } from '../lib/context-fill';
 import { NEW_WINDOW_AGENTS, type NewWindowAgent, isNewWindowAgent } from '../lib/new-window-agents';
 import {
   type ProcessTable,
@@ -99,8 +100,11 @@ export class TmuxSessionManager {
   >();
   /** Per `session:windowId`: the screen's last line of real text, from the latest read. */
   private readonly lastLines = new Map<string, string | null>();
-  /** Per `session:windowId`: the pij seat running there, and its context use. */
-  private readonly windowSeats = new Map<string, PaneSeat>();
+  /**
+   * Per `session:windowId`: the window's identity seat (first found) and the context of its
+   * fullest seat, which may be another pane's.
+   */
+  private readonly windowSeats = new Map<string, { id: string; context: WindowContext | null }>();
   private processTable:
     | { at: number; table: Promise<{ table: ProcessTable; seconds: number }> }
     | undefined;
@@ -302,7 +306,10 @@ export class TmuxSessionManager {
         treeCpu: number;
         activityAt: number;
         jobs: number[];
+        /** The window's identity seat: the first one found across its panes. */
         seat: PaneSeat | null;
+        /** Every seat running in one of the window's panes, in pane order. */
+        seats: PaneSeat[];
         /** tmux still names the window after its command: nobody has named it. */
         unnamed: boolean;
       }
@@ -324,17 +331,15 @@ export class TmuxSessionManager {
           activityAt: Number(activityText) || 0,
           jobs: [],
           seat: null,
+          seats: [],
           unnamed: autoRename === '1',
         };
         sample.treeCpu += tree;
         // A pane id is recycled once its pane closes, so the seat must also be running in it.
         const seat = paneId ? seatsByPane.get(paneId) : undefined;
-        if (
-          !sample.seat &&
-          seat &&
-          (seat.pid === panePid || descendantPids(table, panePid).includes(seat.pid))
-        ) {
-          sample.seat = seat;
+        if (seat && (seat.pid === panePid || descendantPids(table, panePid).includes(seat.pid))) {
+          sample.seat ??= seat;
+          sample.seats.push(seat);
         }
         // First agent found across the window's panes marks the window.
         if (!sample.agent) {
@@ -362,8 +367,11 @@ export class TmuxSessionManager {
         listed.add(key);
         if (sample.agent) this.agentKinds.set(key, sample.agent.kind);
         else this.agentKinds.delete(key);
-        if (sample.seat) this.windowSeats.set(key, sample.seat);
-        else this.windowSeats.delete(key);
+        if (sample.seat) {
+          this.windowSeats.set(key, { id: sample.seat.id, context: fullestContext(sample.seats) });
+        } else {
+          this.windowSeats.delete(key);
+        }
         // A window whose screen moved but was not read this sample (over the read budget) keeps
         // its reading; it is read first next sample, so its working state lags one poll at most.
         if (!deferred.has(windowId)) {

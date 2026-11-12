@@ -6,7 +6,7 @@
  */
 
 import type { AgentKind } from './lib/agent-kind';
-import type { SeatContext } from './lib/context-fill';
+import type { SeatContext, WindowContext } from './lib/context-fill';
 import type { NewWindowAgent } from './lib/new-window-agents';
 
 /** A tmux session discovered on the host machine */
@@ -190,12 +190,16 @@ export interface TerminalWindow {
    */
   lastLine: string | null;
   /**
-   * The pij seat running in this window: a seat whose pane is one of the window's panes AND whose
-   * process lives in that pane's process tree, so a recycled pane id never matches. `null` if none.
+   * The window's identity seat (names the window, drives seat badges): the first pij seat found
+   * whose pane is one of the window's panes AND whose process lives in that pane's process tree,
+   * so a recycled pane id never matches. `null` if none.
    */
   seatId: string | null;
-  /** That seat's context use (see `lib/context-fill.ts`); `null` with no seat or no report. */
-  context: SeatContext | null;
+  /**
+   * Context use of the fullest seat across the window's panes (see `lib/context-fill.ts`), which
+   * may not be `seatId`; `null` when no seat in the window reports context.
+   */
+  context: WindowContext | null;
 }
 
 /** A pij seat as the terminal sidecar joins it to a pane (see `TmuxSessionManager`). */

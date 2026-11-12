@@ -1,12 +1,12 @@
 /**
  * The context-fill bar: a thin vertical track filled from the bottom to the share of the agent's
- * context window in use, coloured by band (see `lib/context-fill.ts`). Renders nothing when the
- * window's seat reports no context. The caller positions the track (`className`).
+ * context window in use, coloured by band (see `lib/context-fill.ts`). Renders nothing when no
+ * seat in the window reports context. The caller positions the track (`className`).
  */
 
 import {
   type ContextBand,
-  type SeatContext,
+  type WindowContext,
   contextBand,
   contextFill,
   contextLabel,
@@ -23,7 +23,7 @@ export function ContextFillBar({
   context,
   className,
 }: {
-  context: SeatContext | null;
+  context: WindowContext | null;
   className: string;
 }) {
   if (!context) return null;
