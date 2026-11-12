@@ -1,0 +1,18 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-trace-idle-block-and-b6-ctx.dd.json
+  h_9e71e8b09f7cf2 1-28
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-trace-idle-block-and-b6-ctx.dd.md
+  h_9e71e8b09f7cf2 1-60
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  h_9e71e8b09f7cf2 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "479afe0739321a1f2fbd9ad045434e1d64d4f46b",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
