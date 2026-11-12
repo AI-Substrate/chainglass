@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "note",
+				"role": "coder",
+				"subject": "plan:nav-ssr-dashboard",
+				"writer": "pij-local-parakeet",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# coder/ssr-dashboard memory note (2026-11-12 ~14:25)\n\n- Worktree: /Users/jordanknight/substrate/chainglass-ssr-dashboard, branch ssr-dashboard. HEAD = e37b1ea0d, which is on origin/main.\n- Do NOT rebuild apps/web/.next (BUILD_ID ZZIbTWv9amAER6YRBsofc) until reviewer pij-unaware-quokka says done. They reuse it on :3192.\n- Uncommitted work, two future commits, kept separate:\n  1. /login loop: apps/web/proxy.ts (LOGIN_PATH passes when unauthenticated) and test/unit/web/proxy-login-redirect.test.ts. The test failed first and is green now.\n  2. localhost-guard: apps/web/src/lib/socket-peer.ts (new; patches http/https Server.prototype.emit for request+upgrade and overwrites x-chainglass-peer-address; globalThis flag), apps/web/src/lib/localhost-guard.ts (trusts only the stamped peer; any non-loopback XFF hop is rejected), and test/unit/web/lib/localhost-guard.test.ts (real http server; 4/7 failed on the old guard, 7/7 now).\n- Still owed for the guard:\n  - Update the 38 failing tests in 6 files that fake \"local\" with XFF 127.0.0.1 + Host localhost (local-auth, envmatrix, log-audit, event-popper infrastructure/sink-auth/sinks). Do this after strip-067 lands.\n  - Add installPeerAddressStamp() to instrumentation.ts register() (nodejs) after crane's instrumentation lands.\n  - Live proof on next start (private tmux, spare port 3191/4691 because :3101 is OrbStack's): LAN spoof gets 403 on a localhost-only route, localhost passes, plus the terminal/remote-view/cg X-Local-Token gate from localhost and LAN.\n- Landing rule (prime): one full green `just test` in a slot the prime grants, after mole's test-load fix. No targeted-rerun exceptions.\n- Proof scripts are in /tmp/ssr-probe: term-proof.mjs, ssr-probe.mjs, crawl.mjs, realauth.mjs. The private tmux needs `env -u TMUX TMUX_TMPDIR=/tmp/ssr-dashboard-tmux tmux new-session -d -s scratch` first.\n"
+		}
+	]
+}
