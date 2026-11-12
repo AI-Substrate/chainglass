@@ -1,0 +1,31 @@
+apps/web/src/features/088-remote-view/server/remote-view-service.production.ts
+  s_2dcffca6d7e40e::t_a2365bb855775b 167,190-191,193-195
+apps/web/src/features/088-remote-view/server/remote-view-service.ts
+  s_a0605d79762c49::t_6073f44cdca036 228-233,235-239,243,246-247,250,252,262-263,270-275
+test/unit/web/features/088-remote-view/real-remote-view-service.test.ts
+  s_a0605d79762c49::t_7f6bbe708b5e7d 1-2,25,216,220-221,223,233,268,286-376
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "49d88a42847709a279eb1c6c45b4a9508520f388",
+  "prompts": {},
+  "sessions": {
+    "s_2dcffca6d7e40e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abfad9e5-ed0c-4a0b-ad52-c484d85a3798",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_a0605d79762c49": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8a059421-ccd2-4497-8598-8d6a11ba4bee",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
