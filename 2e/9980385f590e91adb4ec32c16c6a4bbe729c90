@@ -1,0 +1,16 @@
+.harness/government/community/roles/coder/holders.dd.json
+  h_9e71e8b09f7cf2 102-103,105
+.harness/government/community/roles/coder/holders.dd.md
+  h_9e71e8b09f7cf2 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2e9980385f590e91adb4ec32c16c6a4bbe729c90",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
