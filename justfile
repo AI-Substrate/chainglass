@@ -36,8 +36,10 @@ dev:
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
 
 # Free the ports a server is about to bind. `mode` is the server being started:
-# - dev: kills a stale listener, unless the port belongs to a live prod server (its
-#   .chainglass/servers/<port>.json says mode prod) — then it refuses.
+# - dev: kills a stale listener, unless the port belongs to a live prod server or its terminal
+#   sidecar (.chainglass/servers/<port>.json or <port-1500>.json says mode prod, and its pid is
+#   alive and started no later than the entry's startedAt — the same PID-recycling rule as
+#   readServerInfo) — then it refuses. A killed server's leftover entry protects nothing.
 # - prod: refuses whenever something listens, so `just prod` never kills a running server.
 # KILL_EXISTING=1 kills the listener in both modes. Nothing is killed unless every port passes.
 # CLAIM_CHECK_ONLY=1 reports and refuses but never kills (`just prod` runs it before building).
@@ -50,9 +52,18 @@ _claim-ports mode +ports:
       PIDS=$(lsof -ti TCP:$p -sTCP:LISTEN 2>/dev/null | tr '\n' ' ' || true)
       [ -z "${PIDS// /}" ] && continue
       CMD=$(ps -p "$(echo $PIDS | tr ' ' ',')" -o command= 2>/dev/null | head -1 || echo "unknown")
-      ENTRY=".chainglass/servers/$p.json"
-      LIVE_PROD=false
-      if [ -f "$ENTRY" ] && grep -q '"mode": "prod"' "$ENTRY"; then LIVE_PROD=true; fi
+      LIVE_PROD=$(node -e '
+        const fs = require("fs"), { execSync } = require("child_process");
+        for (const f of process.argv.slice(1)) {
+          try {
+            const e = JSON.parse(fs.readFileSync(f, "utf8"));
+            if (e.mode !== "prod") continue;
+            process.kill(e.pid, 0);
+            const started = new Date(execSync(`ps -o lstart= -p ${e.pid}`, { encoding: "utf8" }).trim()).getTime();
+            if (Number.isNaN(started) || started <= new Date(e.startedAt).getTime() + 5000) { console.log("true"); process.exit(0); }
+          } catch {}
+        }
+        console.log("false");' ".chainglass/servers/$p.json" ".chainglass/servers/$((p - 1500)).json" 2>/dev/null || echo false)
       if [ "${KILL_EXISTING:-}" = "1" ] || { [ "{{mode}}" = "dev" ] && [ "$LIVE_PROD" = false ]; }; then
         ACTION="killing it"; [ -n "${CLAIM_CHECK_ONLY:-}" ] && ACTION="will kill it once the build is ready"
         echo "⚠️  Port $p in use by PID $PIDS($CMD); $ACTION"
@@ -139,35 +150,36 @@ prod:
     # Stage a copy of the fresh build (no caches, dev output or standalone bundle); prod-serve
     # swaps it in once the ports are free. It sits beside .next, at the same depth, because the
     # build's node_modules symlinks are relative (../../../../node_modules/...). `cp -c` clones
-    # on APFS (~2 s; rsync took 5 min under load); plain `cp -R` elsewhere.
+    # on APFS (~2 s; rsync took 5 min under load); plain `cp -R` elsewhere. The .complete marker
+    # is written last: a copy without it never finished and is never promoted.
     STAGED=apps/web/.next-prod-$NEXT_PORT.staged
     rm -rf "$STAGED" && mkdir -p "$STAGED"
     for e in apps/web/.next/*; do
       case "$(basename "$e")" in cache|dev|standalone|trace|trace-build|diagnostics|lock) continue ;; esac
       cp -cR "$e" "$STAGED/" 2>/dev/null || cp -R "$e" "$STAGED/"
     done
+    touch "$STAGED/.complete"
     just prod-serve
 
 # Serve the prod build without rebuilding (fast relaunch): a build staged by `just prod`,
 # else the copy already in apps/web/.next-prod-<port>/. Same server + sidecar as `just prod`.
+# Every check that can fail runs before a live server on the port is killed.
 prod-serve:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
     DIST=.next-prod-$NEXT_PORT
-    # Guard: a production build must exist
-    if [ ! -f "apps/web/$DIST/BUILD_ID" ] && [ ! -f "apps/web/$DIST.staged/BUILD_ID" ]; then
+    # Guard: a production build must exist (a finished stage, or the current copy)
+    if [ ! -f "apps/web/$DIST/BUILD_ID" ] && [ ! -f "apps/web/$DIST.staged/.complete" ]; then
       echo "❌ No production build for port $NEXT_PORT (apps/web/$DIST/BUILD_ID missing)."
       echo "   Run \`just prod\` (build + serve) first."
       exit 1
     fi
-    just _claim-ports prod $NEXT_PORT $WS_PORT
-    if [ -d "apps/web/$DIST.staged" ]; then
-      rm -rf "apps/web/$DIST" && mv "apps/web/$DIST.staged" "apps/web/$DIST"
-    fi
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
+    just _claim-ports prod $NEXT_PORT $WS_PORT
+    just _promote-prod-build $NEXT_PORT
     # `next start` serves the precompiled build (minified, no on-demand compile) from the
     # CHAINGLASS_DIST_DIR copy (apps/web/next.config.mjs). Next prints an "output: standalone"
     # advisory warning here; it's harmless (standalone output is only for `cg`/CLI packaging).
@@ -176,6 +188,31 @@ prod-serve:
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
         "cd apps/web && CHAINGLASS_DIST_DIR=$DIST pnpm exec next start --port $NEXT_PORT" \
         "pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
+# Swap a finished staged build (apps/web/.next-prod-<port>.staged, with .complete) in as
+# apps/web/.next-prod-<port>. An unfinished stage is discarded and the current copy kept. The
+# replaced copy stays as apps/web/.next-prod-<port>.old until the next promotion, so a new build
+# that fails to start can be rolled back by hand:
+#   rm -rf apps/web/.next-prod-<port> && mv apps/web/.next-prod-<port>.old apps/web/.next-prod-<port>
+#   && PORT=<port> just prod-serve
+_promote-prod-build port:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DIST=apps/web/.next-prod-{{port}}
+    STAGED=$DIST.staged
+    if [ ! -d "$STAGED" ]; then exit 0; fi
+    if [ ! -f "$STAGED/.complete" ]; then
+      echo "⚠️  $STAGED never finished copying (no .complete); discarding it and keeping $DIST"
+      rm -rf "$STAGED"
+      exit 0
+    fi
+    rm -rf "$DIST.old"
+    if [ -d "$DIST" ]; then mv "$DIST" "$DIST.old"; fi
+    if ! mv "$STAGED" "$DIST"; then
+      if [ -d "$DIST.old" ]; then mv "$DIST.old" "$DIST"; fi
+      echo "❌ Could not move $STAGED into place; kept the previous build"
+      exit 1
+    fi
 
 # Plan 088 (DL-001): flag a stale CLI bundle — dist/cli.cjs older than any apps/cli/src file means
 # `cg remote-view` (and other verbs) may be missing/outdated. Advisory guard; run before a live CLI
@@ -667,19 +704,11 @@ preflight:
         fi
     fi
 
-    # 2. A server is running — live entries in .chainglass/servers/<port>.json (prod first, then port)
-    SERVERS=$(FORCE_COLOR=0 node -e '
-      const fs = require("fs"), path = require("path");
-      const dir = path.join(process.argv[1], ".chainglass", "servers");
-      let names = [];
-      try { names = fs.readdirSync(dir).filter((n) => /^\d+\.json$/.test(n)); } catch {}
-      for (const n of names) {
-        try {
-          const s = JSON.parse(fs.readFileSync(path.join(dir, n), "utf8"));
-          process.kill(s.pid, 0);
-          console.log(`${s.mode} ${s.port} ${s.pid}`);
-        } catch {}
-      }' "$REPO_ROOT" | sort -k1,1r -k2,2n)
+    # 2. A server is running — listServerInfo: live, non-recycled entries in
+    #    .chainglass/servers/<port>.json, prod first then port (the CLI's own selection order)
+    SERVERS=$(cd "$REPO_ROOT" && FORCE_COLOR=0 node --input-type=module -e '
+      const { listServerInfo } = await import("./packages/shared/dist/event-popper/index.js");
+      for (const s of listServerInfo(process.cwd())) console.log(`${s.mode} ${s.port} ${s.pid}`);' 2>/dev/null || true)
     if [ -z "$SERVERS" ]; then
         echo "  ✗ No chainglass server running (no live .chainglass/servers/<port>.json)"
         echo "    Fix: just dev (or just prod)"

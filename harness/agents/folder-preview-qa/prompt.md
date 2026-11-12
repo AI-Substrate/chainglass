@@ -25,9 +25,18 @@ Create a test directory with mixed content types inside the workspace's worktree
 
 First, discover the app port and workspace:
 ```bash
-# Get the app port from the running server's entry (.chainglass/servers/<port>.json)
-APP_PORT=$(ls .chainglass/servers/ 2>/dev/null | grep -E '^[0-9]+\.json$' | head -1 | cut -d. -f1)
-APP_PORT=${APP_PORT:-3000}
+# Each server registers in .chainglass/servers/<port>.json; discoverServerInfo picks the live one
+# (CG_SERVER_PORT, else prod, else the lowest port) and skips dead or recycled entries. With no
+# registry at all (the harness container writes none), the app is on its default port 3000.
+if [ -d .chainglass/servers ]; then
+  APP_PORT=$(node --input-type=module -e "
+    const { discoverServerInfo } = await import('./packages/shared/dist/event-popper/index.js');
+    const server = discoverServerInfo(process.cwd());
+    if (!server) { console.error('No live chainglass server in .chainglass/servers'); process.exit(1); }
+    console.log(server.port);") || exit 1
+else
+  APP_PORT=3000
+fi
 echo "App running on port: $APP_PORT"
 
 # Get workspace slug from the dev server

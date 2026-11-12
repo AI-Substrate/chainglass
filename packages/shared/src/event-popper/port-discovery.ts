@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -77,7 +78,6 @@ function isPidAlive(pid: number): boolean {
 function getProcessStartTime(pid: number): number | null {
   try {
     if (process.platform === 'darwin') {
-      const { execSync } = require('node:child_process');
       const output = execSync(`ps -o lstart= -p ${pid}`, {
         encoding: 'utf-8',
         timeout: 3000,
