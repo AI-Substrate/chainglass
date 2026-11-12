@@ -76,7 +76,10 @@
 					"harness_session": "01a1cd46-cb8e-7586-9988-37bc29ccc9ee",
 					"instance_key": "ctx-max",
 					"machine": "ops.osk.lan",
+					"release_why": "Landed and reviewed pass-with-notes (69031952b, f23b70f58)",
+					"released_by": "pij-outer-bobcat",
 					"seat": "pij-ambitious-warbler",
+					"to": "2026-11-12T08:18:53.354Z",
 					"why": "Jordan: context bar shows the fullest agent in a multi-pane window"
 				},
 				{
