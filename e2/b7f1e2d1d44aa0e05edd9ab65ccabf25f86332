@@ -1,0 +1,18 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-reviewer-status-cadence-report-at-both.dd.json
+  h_9e71e8b09f7cf2 1-26
+.harness/government/community/roles/reviewer/memory/2026-11-12-reviewer-status-cadence-report-at-both.dd.md
+  h_9e71e8b09f7cf2 1-21
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  h_9e71e8b09f7cf2 25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e2b7f1e2d1d44aa0e05edd9ab65ccabf25f86332",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
