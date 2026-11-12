@@ -1,0 +1,19 @@
+.harness/government/briefs/nav-requests/review-ssr-dashboard.md
+  s_dc95b559b7dd06::t_570bc388b7d6e0 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "75a5a04f5432d15d5c11296f6273720996998f66",
+  "prompts": {},
+  "sessions": {
+    "s_dc95b559b7dd06": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "a045a28e-6297-438b-977e-ff324647d3f6",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
