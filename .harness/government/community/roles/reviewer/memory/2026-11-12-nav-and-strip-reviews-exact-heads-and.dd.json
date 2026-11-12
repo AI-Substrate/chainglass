@@ -1,0 +1,27 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "SSR gate cleared; dev/prod and strip remain blocked pending corrective SHA and preserved build/browser proof",
+				"tags": [
+					"nav",
+					"review",
+					"gates",
+					"removal",
+					"auth"
+				],
+				"title": "Nav and strip reviews: exact heads and evidence ceilings"
+			}
+		},
+		{
+			"name": "body",
+			"value": "# Exact-head review carry-forward\n\nReviewer pij-unaware-quokka; prime pij-outer-bobcat. Read-only reviews: no product fixes/rebuilds; route findings to coder. Never stop/restart Jordan's just dev or production :3000. Reuse preserved author builds. Spare proofs nice19, freeports, unsetTMUX/privateTMUX_TMPDIR, stopfixturesafterward. No transportinboxlogreads; usepij_send.\n\n## Verdict anchors\n\n- SSR e37b1ea0d26e371ca5bfefc456df60658d6e0e89: initial full-gate BLOCK later cleared to PASS-WITH-NOTES by composed greenFFT at9ced5cb45. Output1710772213340cd0a798038b76a7b1f2b24e33d9; /tmp/dev-beside-prod-artifacts/ssr-full-gate-remediation.md. Runtime proof: SSR/auth27pass, authorbuildZZIbTWv9amAER6YRBsofc medianFCP48ms; JS-off pageHTMLpresentbutstreamedhidden; LANcookieSecurestrippedso notnativeLANlogin. Terminaloverlay input/output/resize/windows passed. Allfixturesclosed.\n- Dev/prod f71668fa0132eba674fd04bbbbbe94d6a0a76164: BLOCK, output864c410de0b607221a52dcdeaa2e2327e70fb0c5. HIGHincompletestagedpromotiondestroysgoodbuild/prerequisiteafterkill; MEDIUMsidecarowner/devguardstalePIDandQArawregistryselection. 39targetedpass. Reprofixturelistenerstopped. Report /tmp/dev-beside-prod-artifacts/review-f71668fa0.md. ESMrequirePIDrecycledetectionlimitation note628533133bf0d7d0a821877920925730c9b154b9. Crane correction771630b65lastreportedunlanded; doNOTcredituntilnewexactSHAreview. Preserveworktree/build/logsforreview; noothercopybuild.\n- Test-load7688c86cfa1b2bddfe67bd7404d58293ca3a61c6: PASS-WITH-NOTES, outputffb095e4d2f10559b42d101d49af3ec6b610a5e1. Realvitestinventory567=64process+503unit, noomission/duplicate. 75convertedrealGittests passed. Defaulttmux3000ms preserved, 30msinjectedfailureanddefaultsuccessruntimeproof. Bounds120/60/30conservativeheadroomnotmeasuredmax. AsyncGitexecFilehasnochildtimeout/cancellation. “Noper-fileoverrides”meansincidentraisesonly;17purposefulbudgetsremainperprime. /tmp/test-load/review-7688c86cf.md, inventoriesnearby. Detachedsnapshotremoved.\n- Stripquestionpopperd63f9250394add0c0d0d2d6ef65aab8ae40382cd: BLOCK, outputc492b541415c482d519a607ceca2ffc50eb9b53a, answers728dd6616511cadd-000000000000177e. /tmp/strip067-review-d63f92503.md and governance reviewer output12-verdict-plan-strip-question-popper-d63f925. No product-codeblockerfound. MissingfinalfullFFT/Nextbuildandrebuiltbrowserproof. Authorfulltest552files/7294tests passed, nine-tsconfigtypecheck/lint; fulltestlogfilterswarninglines. Independent7files126tests passed (registry/auth/proxy/remote-view/mux/hooks); builtCLIquestion/alertactualdispatchrejectexit1; sharedcompiledESM9registryexports, removedschemas/GUID/tmuxabsent. Auth/terminal/workflow/MCPregistryfiles unchangedfromf716. No live deletedcontractcallers, UI/API/CLI/DI/SSEcutovercoherent.\n\n## Strip follow-up and acceptance\n\nWombat locally deleted source-count page-wiring test (7→6repinforbidden), and corrected domain-map52/157/235per-portpathand auth→externalEventsowner. Uncommitted/unlanded atreview, awaitsfullgateandSHA. No landedcredityet. Authoramendment12-deliverable-plan-strip-question-popper-3 governancec1f18e840read: correctsfalse “everyothertoastuseraction”; unrelatedexternalworkflowstructureSSEtoastandtmux-unavailablewarningremain. DoNOTremoveoutside067scope. The pre-rebase FFTbuildstepwasgreenbutoverallFFTred;notfinalbuildproof. BrowserpendingJordanrebuildaftercranefix, noautomaticrestartauthorized. Prime reports craneFFTcurrentlyrunninginitsworktreeond63; completedgreencomposedFFTcanremediategateONLYafterfulllogandactualhead/ancestry/diff/buildprovenanceverified; browseracceptancestillseparate. Plan080tmuxeventsAPIalreadydeletedbyf89ae7ccf(parentancestor), remainingbellscriptdeadbeforestrip—notaregessionandnotproofbellworks. C4neverrepresentedretireddomain, nodanglinglink.\n\n## Full gate evidence already consumed\n\n/tmp/dev-beside-prod-artifacts/dev-beside-prod-fft.log all4354linesread; SHA25647bfa3462971cfea423e1b13dfc8f1e5d0234b3f83ab0ecb50c963283fdcdc3c; checksumsOK. Lint1848/build7of7zero-cache/nine-tsconfigs/test559files7453tests passed,8files63testsskipped; audit3low16moderatenohighcritical, nohiddentest/workerfailures. Wrapperrc0/558s. refs/review/dev-beside-prod-fft-head=9ced5cb45; ancestryincludesSSR+test-load, actualdeltafromf716docs/commentsonly. TargetedgreenNEVERwaivesredfullgate; primecannotwaiveJordanrequiredgates. Missingproof=deliveryfinding, notinventedcodebug.\n"
+		}
+	]
+}
