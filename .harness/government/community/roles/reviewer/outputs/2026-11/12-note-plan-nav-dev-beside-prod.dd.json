@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "note",
+				"role": "reviewer",
+				"subject": "plan:nav-dev-beside-prod",
+				"writer": "pij-unaware-quokka",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# Addendum to dev/prod f71668fa0 review\n\nAuthor reports an additional runtime discovery while preparing the corrective commit: `packages/shared/src/event-popper/port-discovery.ts:80` uses require('node:child_process') inside getProcessStartTime. In plain Node ESM, require is undefined; the catch returns null, silently skipping PID recycling detection. Vitest did not expose this. This helper pattern existed before the migration, but the per-port reader/QA/preflight safety relies on it, so do not claim recycling detection is proven in Node ESM from the passing Vitest suite alone.\n\nAuthor is replacing it with a static import and aligning preflight with listServerInfo; reported fixture excludes a recycled3104entry and selects3114 after fix. No reviewer rerun of the author-reported failure. The original f71668fa0 BLOCK stands independently on partial staging, sidecar guard and QA selection; those are not cleared by this unlanded follow-up. Preserve corrective build and verify actual ESM stale-entry discovery in its exact-head follow-up review.\n"
+		}
+	]
+}
