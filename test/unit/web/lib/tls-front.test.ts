@@ -394,29 +394,37 @@ describe('tls-front: WebSocket upgrades', () => {
   );
 });
 
+/**
+ * A sidecar listening at exactly `nextPort + 1500`, and (if given) `next` listening at `nextPort`.
+ * Starts from the sidecar's ephemeral port: ephemeral ports reach 65535, so an ephemeral Next
+ * port + 1500 can be past the end of the port range.
+ */
+async function sidecarPair(next?: net.Server): Promise<{ nextPort: number; sidecar: net.Server }> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const sidecar = net.createServer((sock) => sock.pipe(sock));
+    const nextPort = (await listen(sidecar)) - TERMINAL_PORT_OFFSET;
+    if (!next) return { nextPort, sidecar };
+    try {
+      await listen(next, nextPort);
+      return { nextPort, sidecar };
+    } catch {
+      await closeServer(sidecar)();
+    }
+  }
+  throw new Error('no free port pair for the sidecar');
+}
+
 describe('tls-front: close() with live connections (F3)', () => {
   it('ends live upgraded and terminal-tunnel sockets and resolves promptly', async () => {
-    let nextPort = 0;
-    let sidecar: net.Server | undefined;
-    for (let attempt = 0; attempt < 20 && !sidecar; attempt++) {
-      const s = http.createServer();
-      s.on('upgrade', (_req, socket) => {
-        socket.write(
-          'HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n'
-        );
-        socket.pipe(socket);
-      });
-      nextPort = await listen(s);
-      const side = net.createServer((sock) => sock.pipe(sock));
-      try {
-        await listen(side, nextPort + TERMINAL_PORT_OFFSET);
-        sidecar = side;
-        cleanups.push(closeServer(s));
-      } catch {
-        await closeServer(s)();
-      }
-    }
-    if (!sidecar) throw new Error('no free port pair for the sidecar');
+    const next = http.createServer();
+    next.on('upgrade', (_req, socket) => {
+      socket.write(
+        'HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n'
+      );
+      socket.pipe(socket);
+    });
+    const { nextPort, sidecar } = await sidecarPair(next);
+    cleanups.push(closeServer(next));
     cleanups.push(closeServer(sidecar));
     const f = await startTlsFront({
       cert,
@@ -550,22 +558,8 @@ describe('certPairProblem / certPaths (F2)', () => {
 
 describe('tls-front: terminal tunnel', () => {
   it('tunnels TLS bytes from httpsPort + 1500 to the sidecar at nextPort + 1500', async () => {
-    // The sidecar must sit exactly at nextPort + 1500: find a free pair.
-    let nextPort = 0;
-    let sidecar: net.Server | undefined;
-    for (let attempt = 0; attempt < 20 && !sidecar; attempt++) {
-      const probe = net.createServer();
-      nextPort = await listen(probe);
-      await closeServer(probe)();
-      const s = net.createServer((sock) => sock.pipe(sock));
-      try {
-        await listen(s, nextPort + TERMINAL_PORT_OFFSET);
-        sidecar = s;
-      } catch {
-        // Port taken; try another pair.
-      }
-    }
-    if (!sidecar) throw new Error('no free port pair for the sidecar');
+    // The sidecar must sit exactly at nextPort + 1500.
+    const { nextPort, sidecar } = await sidecarPair();
     cleanups.push(closeServer(sidecar));
     const f = await startTlsFront({
       cert,

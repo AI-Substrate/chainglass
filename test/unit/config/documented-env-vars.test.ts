@@ -65,27 +65,49 @@ describe('documented CG_* environment variables', () => {
 
   const names = documentedNames();
 
-  it('finds the names the remote-view and configuration docs document', () => {
-    expect(names.has('CG_REMOTE_VIEW__DAEMON_PORT')).toBe(true);
-    expect(names.has('CG_REMOTE_VIEW__ALLOWED_ORIGINS')).toBe(true);
-    expect(names.has('CG_MYFEATURE__MAX_RETRIES')).toBe(true);
+  /** Where a CG_ name lands in the parsed config: `__` nests, each segment lowercased as-is. */
+  function configPath(name: string): string[] {
+    return name
+      .slice(3)
+      .split('__')
+      .map((segment) => segment.toLowerCase());
+  }
+
+  function valueAt(config: Record<string, unknown>, path: string[]): unknown {
+    let current: unknown = config;
+    for (const key of path) current = (current as Record<string, unknown> | undefined)?.[key];
+    return current;
+  }
+
+  it.each([...names])('%s (documented in %s) parses to its snake_case path', (name) => {
+    process.env[name] = `sentinel:${name}`;
+    const path = configPath(name);
+    expect(valueAt(parseEnvVars(), path)).toBe(`sentinel:${name}`);
   });
 
-  it.each([...names])('%s (documented in %s) parses', (name) => {
-    process.env[name] = '60';
-    expect(() => parseEnvVars()).not.toThrow();
-  });
-
-  // Overrides of registered sections are values their schemas validate (sample.timeout 1-300,
-  // agent.timeout >= 1000); this is about every other CG_ name not breaking the load.
-  it('config loads with every documented non-section name set at once', () => {
+  // Overrides of the registered sections must be values their schemas accept (agent.timeout
+  // 1000-3600000, sample.timeout 1-300), so they get explicit non-default sentinels; every other
+  // documented name is a process variable or an example section that the loader must ignore.
+  it('config loads with every documented name set, and applies the section overrides', () => {
+    const sectionValues: Record<string, string> = {
+      CG_AGENT__TIMEOUT: '123456',
+      CG_SAMPLE__TIMEOUT: '42',
+    };
     const sections = [AgentConfigType.configPath, SampleConfigType.configPath];
     for (const name of names.keys()) {
-      const section = name.slice(3).split('__')[0].toLowerCase();
-      if (!sections.includes(section)) process.env[name] = 'x';
+      if (sections.includes(configPath(name)[0])) {
+        expect(sectionValues).toHaveProperty(name);
+      } else {
+        process.env[name] = `sentinel:${name}`;
+      }
     }
-    expect(Object.keys(process.env)).toContain('CG_REMOTE_VIEW__DAEMON_PORT');
+    Object.assign(process.env, sectionValues);
+
     const service = new ChainglassConfigService({ userConfigDir: null, projectConfigDir: null });
-    expect(() => service.load()).not.toThrow();
+    service.load();
+
+    expect(service.isLoaded()).toBe(true);
+    expect(service.require(AgentConfigType).timeout).toBe(123456);
+    expect(service.require(SampleConfigType).timeout).toBe(42);
   });
 });
