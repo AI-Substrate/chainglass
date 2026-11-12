@@ -1,0 +1,16 @@
+.harness/government/community/roles/coder/outputs/2026-11/12-note-plan-nav-progress.dd.json
+  h_9e71e8b09f7cf2 1-31
+.harness/government/community/roles/coder/outputs/2026-11/12-note-plan-nav-progress.dd.md
+  h_9e71e8b09f7cf2 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7fa2277033c453c4103a56383aabc9259062fa23",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
