@@ -1,0 +1,41 @@
+apps/web/src/lib/tls-front.ts
+  s_2dcffca6d7e40e::t_a5c6082fa79240 1-311
+docs/domains/_platform/external-events/domain.md
+  s_13e44467d7e910::t_e04a8f0f412b60 21,37,82-83,98
+docs/how/dev/https.md
+  s_13e44467d7e910::t_86b5c425c6ac9f 44-76
+vitest.config.ts
+  s_ee855675d13418::t_f23f10a0cbc879 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e7255064491616f65bfcc1776be69fe8e5462d85",
+  "prompts": {},
+  "sessions": {
+    "s_13e44467d7e910": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "825608fb-1d35-4eb0-b17e-cbb9a9a9fc7f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_2dcffca6d7e40e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abfad9e5-ed0c-4a0b-ad52-c484d85a3798",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ee855675d13418": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "988a2b82-5644-4651-8743-ea746ba66cbf",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
