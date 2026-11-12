@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-ssr-dashboard-exact-head-review-and-full.dd.json
+  s_479e20f1ba7242::t_87dbc89004b30c 1-27
+.harness/government/community/roles/reviewer/memory/2026-11-12-ssr-dashboard-exact-head-review-and-full.dd.md
+  s_479e20f1ba7242::t_26163cc310ae38 1-28
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_479e20f1ba7242::t_7dd4bbabb99a9e 3-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4a79d55162f2544bc287e51ed432057346700045",
+  "prompts": {},
+  "sessions": {
+    "s_479e20f1ba7242": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aeb947fa-1853-4b74-b2ef-250407af4aa1",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
