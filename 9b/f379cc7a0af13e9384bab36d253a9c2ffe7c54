@@ -1,0 +1,21 @@
+docs/how/dev/dev-beside-prod.md
+  s_e4fd687bc1f96a::t_5dd302a7c28a11 66-67
+justfile
+  s_e4fd687bc1f96a::t_cc69c9e66de72c 131-132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9bf379cc7a0af13e9384bab36d253a9c2ffe7c54",
+  "prompts": {},
+  "sessions": {
+    "s_e4fd687bc1f96a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7455c9f6-7177-4d93-b0e3-6a378e67611b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
