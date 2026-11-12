@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-navigation-progress-block-and.dd.json
+  s_d2baaa0dcf3672::t_505b87b9b7ed16 1-26
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-navigation-progress-block-and.dd.md
+  s_d2baaa0dcf3672::t_376fb34a306fca 1-37
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_d2baaa0dcf3672::t_030d1c44b253ef 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "1986139ff506fff5ad03e134c526d918e9326b54",
+  "prompts": {},
+  "sessions": {
+    "s_d2baaa0dcf3672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f4ceafe9-57e3-49c7-b5f7-f83537423687",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
