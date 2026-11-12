@@ -1,0 +1,19 @@
+.harness/government/reports/nav-wave-findings.md
+  s_4be853806d0749::t_795bba847b0b6c 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a18521964dceca58668ee65d1df4dc8bc54287dd",
+  "prompts": {},
+  "sessions": {
+    "s_4be853806d0749": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "cca264a8-ab65-41d7-96bd-892b1929c606",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
