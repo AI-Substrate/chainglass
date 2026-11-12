@@ -1,0 +1,21 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-cg-env-fa5178e.dd.json
+  s_c2ffc6691b2daa::t_53df282d114ca4 1-35
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-cg-env-fa5178e.dd.md
+  s_c2ffc6691b2daa::t_0ac626f68623f0 1-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "0062e86bf9f8c852160b177315d581f8e125717d",
+  "prompts": {},
+  "sessions": {
+    "s_c2ffc6691b2daa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3fa897fc-7121-4ff5-a5b7-c1ada6253981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
