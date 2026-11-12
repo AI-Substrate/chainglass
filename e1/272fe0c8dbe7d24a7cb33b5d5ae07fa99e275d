@@ -1,0 +1,19 @@
+.harness/government/briefs/nav-requests/review-dev-beside-prod.md
+  s_ea39c50f7d5e39::t_e8fb14eba801de 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e1272fe0c8dbe7d24a7cb33b5d5ae07fa99e275d",
+  "prompts": {},
+  "sessions": {
+    "s_ea39c50f7d5e39": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7757c69e-dcdc-4f56-b45c-66126fe260ab",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
