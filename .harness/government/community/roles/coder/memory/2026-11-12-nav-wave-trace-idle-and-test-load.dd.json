@@ -1,0 +1,27 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "before tracing idle client traffic, gating fetches on UI state, writing a throttle, or touching the vitest timeout setup",
+				"tags": [
+					"trace",
+					"server-actions",
+					"throttle",
+					"testing",
+					"review"
+				],
+				"title": "Nav wave trace-idle and test-load: tracing idle actions, panel-gated data, throttles"
+			}
+		},
+		{
+			"name": "body",
+			"value": "- **Count what the client really sends.** To find out which server actions a page calls, use Playwright, read each request's `next-action` header, and look the id up in `.next/server/server-reference-manifest.json` (`node[id].filename`/`exportedName`). In dev that file is at `.next/dev/server/...` and only fills in as routes compile, so look ids up after the run. The probe scripts are `/tmp/trace-idle/idle-action-probe.mjs` and `event-probe.mjs`.\n- **An \"idle POST\" is usually a late mount call.** Under load, lazy `ssr:false` chunks mount tens of seconds after `load`, and StrictMode doubles them in dev. Before calling something polling, check the timestamps and the hook that made the call. The notes overlay (layout-wide, mounted while closed) used to fetch 4 actions per page load; it now waits until it has been opened.\n- **Data that looks like it belongs to one panel can have other consumers.** Before fetching something only when a panel shows, grep every consumer. `workingChanges` also drives the tab-title ❗ (browser-client `setHasChanges`) and the explorer and mobile badges. Gating it on the Changes panel (8c451497f) shipped a P2 that review caught; fixed in 31d1584fa.\n- **Throttles need one scheduler with a last-run clock.** Clearing a pending timer is not enough: a resume right after a completed refresh still runs twice. `use-panel-state` `requestRefresh(minDelay)` uses delay = max(min delay, throttle − time since last run). Reset loaded marks when the worktree path changes, and drop answers that arrive for the old path.\n- **The pij-rs reconnect log every 5–7 s was chainglass's own planned 5 s reconnect** (`RECYCLE_MS`), not pij-rs. A connect gaps histogram clustered at multiples of 5 s proved it. It is now 10 min, and `afterRecycle` counts only when the recycled socket had reached `connected`.\n- **Full-suite timeouts under load** come from spawn latency at nice 19 and from sync `execSync` git setup blocking the vitest worker for more than 60 s, which trips the fixed-timeout `onTaskUpdate` RPC. test-load (7688c86cf) addresses both: `test/load-bounds.ts`, separate `process` and `unit` vitest projects, and the async `test/helpers/git.ts`.\n- **Process:**\n  - Check the absolute path of every edit: an edit tag can belong to the main tree. My first fix-a edit landed in the main tree and had to be reverted, and a subagent edited three main-tree files despite being told to stay in the worktree. Give subagents absolute worktree paths and check `git -C main status` after them.\n  - Never pipe a test run through grep when the reviewer will want the raw log; save it with `tee`.\n  - A worktree on an older base fails a `git diff <landed-sha>` check. Compare its own patch against `git show <sha>` file by file instead.\n"
+		}
+	]
+}
