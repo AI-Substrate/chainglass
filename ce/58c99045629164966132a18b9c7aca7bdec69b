@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-nav-and-strip-reviews-exact-heads-and.dd.json
+  s_805240d3d0aacd::t_bbb3a83eb6fe3b 1-27
+.harness/government/community/roles/reviewer/memory/2026-11-12-nav-and-strip-reviews-exact-heads-and.dd.md
+  s_805240d3d0aacd::t_340fa91a0d584e 1-39
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_805240d3d0aacd::t_567203fe4e681c 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ce58c99045629164966132a18b9c7aca7bdec69b",
+  "prompts": {},
+  "sessions": {
+    "s_805240d3d0aacd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8b48eaec-e9b5-4e2c-9eb2-e154f068d3dc",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
