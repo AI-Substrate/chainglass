@@ -1,0 +1,19 @@
+justfile
+  s_602abb43934a7b::t_a61289acb33ef1 29,39-50,129,162,196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "4fa6ed9da056d5d3fbbb9f189205ba03301645af",
+  "prompts": {},
+  "sessions": {
+    "s_602abb43934a7b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1ce36-3ac1-7e22-839a-39680abbdf84",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
