@@ -91,3 +91,7 @@ brief hangs seen while a prod tab loads (8-tab test: 3 of 8 tabs waited 5 to 8 s
 - Name: none new given; the certificate covers `localhost`, `127.0.0.1`, `ops.osk.lan` and the LAN
   address(es) until Jordan names one.
 - Build starts only after the demo hold is lifted.
+- (prime, 2026-11-12) With parakeet's socket-peer fix to the localhost guard, the TLS front must set the
+  peer address it saw (its own socket) in a way the guard trusts, and a remote client through the front
+  must still fail the guard. Jordan: xterm.js and its sidecar must keep working throughout, over both
+  `ws://` (HTTP :3000) and `wss://` (HTTPS :3030 / 4530).

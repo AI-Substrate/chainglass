@@ -33,6 +33,11 @@ and delete the branch.
   terminal sidecar talks to the default tmux server, where Jordan's sessions live, and the overlay can
   attach one after a client-side navigation. Start your spare-port Next server and sidecar with `TMUX`
   unset and `TMUX_TMPDIR=/tmp/<slug>-tmux`, and make scratch sessions there.
+- **The terminal keeps working, always** (Jordan, 2026-11-12): any change touching auth, `proxy.ts`,
+  `instrumentation.ts`, the localhost guard, server startup, ports, or the terminal sidecar must show,
+  on a spare-port build with a private tmux server, that xterm.js connects to its sidecar, accepts
+  typing, streams output, and the window strip and resize still work, from localhost and from the
+  LAN address. Same for remote view (`requireLocalAuth`) and the `cg` CLI's `X-Local-Token` path.
 
 ## Other coders in flight (do not edit their files without telling the prime)
 
