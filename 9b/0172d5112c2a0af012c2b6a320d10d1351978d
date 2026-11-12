@@ -1,0 +1,18 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-690-ctx-ranking-approved-f23-and31.dd.json
+  h_9e71e8b09f7cf2 1-28
+.harness/government/community/roles/reviewer/memory/2026-11-12-690-ctx-ranking-approved-f23-and31.dd.md
+  h_9e71e8b09f7cf2 1-45
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  h_9e71e8b09f7cf2 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9b0172d5112c2a0af012c2b6a320d10d1351978d",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
