@@ -1,0 +1,29 @@
+.harness/government/briefs/nav-wave-1.md
+  s_db60ffd0febb56::t_aa841989791d5b 36-40
+.harness/government/reports/https-mode-plan-2026-11-12.md
+  s_da4bb85142a2b5::t_73e567dd3b399b 94-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e24adaefb1c7d18b01f61c1547531a742490c4e4",
+  "prompts": {},
+  "sessions": {
+    "s_da4bb85142a2b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78503607-b6db-4a73-ab3b-ba7e79f6c152",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_db60ffd0febb56": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "55a7d894-3979-4358-92f7-a7b5d177f3b3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
