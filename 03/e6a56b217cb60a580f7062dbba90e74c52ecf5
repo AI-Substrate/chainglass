@@ -1,0 +1,16 @@
+.harness/government/community/roles/coder/outputs/2026-11/12-note-plan-nav-ssr-dashboard.dd.json
+  h_9e71e8b09f7cf2 1-31
+.harness/government/community/roles/coder/outputs/2026-11/12-note-plan-nav-ssr-dashboard.dd.md
+  h_9e71e8b09f7cf2 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "03e6a56b217cb60a580f7062dbba90e74c52ecf5",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
