@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"role": "web-perf-expert",
+				"subject": "plan:nav-https",
+				"writer": "pij-lonely-antelope",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# HTTPS mode validation: 8 tabs, one live-update connection\n\nweb-perf-expert (pij-lonely-antelope), 2026-11-12 19:33 to 19:37. Measurement only; no product code changed.\n\n## Verdict\n\nPass on both expectations, with one setup gap for Jordan: this Mac does not yet trust the mkcert root CA.\n\n## Setup\n\n- Head ae18b1254, served from the coder's existing build in `/Users/jordanknight/substrate/chainglass-https`\n  (`apps/web/.next-prod-3104`, BUILD_ID written 19:22, after the 18:57 commits). No rebuild.\n- `env -u TMUX -u TMUX_PANE TMUX_TMPDIR=/tmp/antelope-https-tmux PORT=3104 nice -n 19 just prod-https-serve`\n  -> Next :3104, sidecar :4604, TLS front https :3134 and wss :4634.\n- tmux rule: directory made 700; `tmux display -p '#{socket_path}'` answered\n  \"error connecting to /private/tmp/antelope-https-tmux/tmux-501/default\". No tmux server was ever created there; no kill-server run.\n- Machine load 20 to 25. Headless Chromium (Playwright), one browser context, signed in through `/api/bootstrap/verify`.\n- Server stopped after (SIGINT to its own concurrently, pid 4746); ports 3104/4604/3134/4634 confirmed free; Jordan's :3000 untouched.\n\n## Results\n\n| Check | Expected | Measured |\n|---|---|---|\n| `/api/events/mux` connections across 8 tabs on `https://192.168.1.32:3134` | exactly 1 | 1 (tab 1 the leader; tabs 2 to 8 opened 0), still 1 at the end |\n| Live event reaches non-leader tabs | yes | yes: a file created in the worktree produced `file-changes:file-changed` on the cross-tab channel in all 7 non-leader tabs, and the new file name appeared in the file tree of all 8 tabs |\n| Other channels fan out too | n/a | `pij:poller-status` and `pij:fleet-delta` also received in all 7 non-leader tabs |\n| Tabs stay responsive | yes | `/api/health` 200 in 2 to 14 ms in every tab, during and after; tabs up in 0.14 to 0.8 s |\n| Secure context and Web Locks, HTTPS (`https://192.168.1.32:3134`, `https://localhost:3134`) | true | true / true; sign-in 200, signed-in request 200 |\n| Plain HTTP beside it (`http://localhost:3104`) | unchanged | secure context true, sign-in 200 |\n| Plain HTTP on the LAN address (`http://192.168.1.32:3104`) | still works | sign-in 200 and signed-in request 200 (this was 401 on prod this morning; fixed by ae18b1254). Web Locks false there, so it stays one connection per tab, as designed |\n| Terminal TLS port `https://192.168.1.32:4634/` | answers TLS | TLS handshake completes, HTTP 426 (upgrade required), i.e. the WebSocket port is up behind TLS |\n\n## Findings\n\n1. **This Mac does not trust the certificate (setup, Jordan's action).** The mkcert root is in the System keychain\n   (SHA-1 6EF35273...AAFF) but carries no trust settings: `security verify-cert -c apps/web/certificates/chainglass.pem`\n   returns `CSSMERR_TP_NOT_TRUSTED`, `security dump-trust-settings -d` has no mkcert entry, system curl without `-k`\n   fails (exit 60), and headless Chromium refused the page with `ERR_CERT_AUTHORITY_INVALID`. The chain itself is\n   good: `openssl verify -CAfile rootCA.pem` is OK and curl with `--cacert rootCA.pem` returns 200. Fix:\n   `mkcert -install` once (admin password), as `docs/how/dev/https.md` already says. Until then every browser on this\n   Mac shows a certificate warning. All browser results above were taken with certificate errors ignored.\n2. **The new file took about 13 s to appear in the tree** (in all tabs at once, leader included, so it is not a\n   cross-tab cost). My poll resolution was about 0.5 s. I did not separate file-watcher delay from tree-refresh\n   spacing (31d1584fa \"space every browser refresh\" is a candidate). Not an HTTPS issue; worth one look.\n\n## Not tested\n\n- A terminal session over `wss` end to end (only that the TLS port answers), and remote view over `/remote-view-ws`.\n- The name `ops.osk.lan` (it does not resolve to this machine yet); tested by LAN IP and localhost.\n- A real, trusted browser session (blocked by finding 1) and other devices.\n- The localhost-only-route 403 behind the front (the reviewer's item, not measured here).\n\n## Evidence\n\nProbe scripts and raw output, session scratchpad\n`/private/tmp/claude-501/-Users-jordanknight-substrate-chainglass/e144359d-e66d-48f2-8095-b7f4dbf9705e/scratchpad/`:\n`https-tabs.mjs`, `https-tabs.out`, `ctx-check-https.mjs`.\n"
+		}
+	]
+}
