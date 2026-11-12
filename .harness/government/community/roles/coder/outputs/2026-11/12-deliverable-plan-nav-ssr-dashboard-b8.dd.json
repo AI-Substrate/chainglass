@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"role": "coder",
+				"subject": "plan:nav-ssr-dashboard-b8",
+				"writer": "pij-local-parakeet",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# plan:nav-ssr-dashboard — deliverable, part 3: B8 verify rate limit on the socket peer\n\nCoder: pij-local-parakeet. Backlog B8, assigned by the prime.\n\n## Commit on main\n\n- `d98cb715a` fix(web): key the bootstrap verify rate limit on the socket peer (on top of `eef5899dd`)\n\n## Change\n\n- **Before:** `/api/bootstrap/verify` keyed its 5/60s budget on the first `X-Forwarded-For` hop, which the client controls.\n- **After:** it keys on `socketPeerAddress()` from the 9c8406b3e stamp. Unstamped requests share one bucket. Localhost and each LAN address keep separate budgets, as before.\n- **Docs:** the auth domain concept row and history, and the threat model in `docs/how/auth/bootstrap-code.md` §8.3.\n\n## Evidence\n\n- **Full `just fft`** 16:46–16:55 (load 55→66): lint, build, typecheck every tsconfig, 7327 passed / 60 skipped, audit has no high/critical. Log: `/tmp/ssr-probe/fft-b8.log`.\n- **Tests:**\n  - `verify.test.ts` adds \"rotating X-Forwarded-For does not reset the budget\" and \"requests with no stamped peer share one budget\".\n  - On the old route, these two and \"separate IPs have independent budgets\" fail (3/17).\n  - The verify, integration, popup and log-audit tests now choose the client by stamped peer.\n- **Live:** prod build on :3191, private tmux. The same probe ran against the 9c8 build before and the d98 build after (`/tmp/ssr-probe/ratelimit-before.txt` / `ratelimit-after.txt`, script `ratelimit-probe.sh`).\n\n| Request | Before (9c8, tkl-8emx4LhwpPDPlHV4e) | After (d98, HZQ1U5Ie9rIkugPUXhDmE) |\n|---|---|---|\n| LAN, wrong code #1–#5, X-Forwarded-For 203.0.113.N rotated | 401 ×5 | 401 ×5 |\n| LAN, wrong code #6, new XFF | 401 | **429** (retryAfterMs ≈ 59.7 s) |\n| localhost, wrong code (own bucket) | 401 | 401 |\n| localhost, right code | 200 | 200 |\n| LAN, right code while limited | 200 | 429 |\n\n- **Terminal gate** (touches the auth path), localhost and 192.168.1.32, terminal page + overlay: all pass. That covers xterm connecting, typing echoed, output streaming, resize 179→94/93, and the window strip creating and selecting a window. Files: `term-b8-*.json`.\n- Remote view gets 200 with the token and 401 without; a LAN spoof gets 401. `cg remote-view list` returns `[]`, exit 0.\n\n## Build for the reviewer\n\n- `/Users/jordanknight/substrate/chainglass-ratelimit`, `apps/web/.next` BUILD_ID `HZQ1U5Ie9rIkugPUXhDmE`.\n- The fft build ran without `apps/web/.env.local`, because a new worktree has none. I copied the main tree's `.env.local` in and re-ran `next build` once (sources unchanged; packages from the fft). That is the build the live proofs used.\n\n## Housekeeping\n\n- Sent \"fft done\" to pij-formal-mole (forced wake, since it was cold; the queue hand-off is its next action).\n- Removed the two /login review worktrees after quokka's d65 PASS-WITH-NOTES.\n- `chainglass-ssr-dashboard` (9c8 build) stays until quokka publishes the guard verdict. Quokka has released its hold.\n"
+		}
+	]
+}
