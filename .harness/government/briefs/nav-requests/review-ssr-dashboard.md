@@ -12,6 +12,6 @@ Look hard at:
 - Hydration mismatches in components that read browser state now that the tree server-renders (localStorage, window size, theme).
 - The Suspense boundary: does a page's own loading/streaming still work; any page that now flashes or shows nothing longer?
 - Test quality: does dashboard-shell-ssr.test.tsx pin server rendering of the shell (fails if ssr:false comes back), not wording?
-- Done-when: workspace HTML contains sidebar + page markup with JS off. You may verify with the coder's existing build at /Users/jordanknight/substrate/chainglass-ssr-dashboard/apps/web/.next served on a spare port that is free on the LAN IP (e.g. 3192), TMUX unset and TMUX_TMPDIR=/tmp/reviewer-tmux, niced; stop it after. Do not build your own copy.
+- Done-when: workspace HTML contains sidebar + page markup with JS off. You may verify with the coder's existing build at /Users/jordanknight/substrate/chainglass-ssr-dashboard/apps/web/.next served on a spare port that is free on the LAN IP (e.g. 3192), niced, private tmux ONLY per nav-wave-1.md "Browser proofs never reach Jordan's tmux" (mkdir -p the dir first, prove the socket path, never `tmux kill-server`); the original `TMUX_TMPDIR=/tmp/reviewer-tmux` here pointed at a dir that never existed and hit the default server (2026-11-12 incident). Stop it after. Do not build your own copy.
 
 Publish: `pij output verdict --role reviewer --subject plan:nav-ssr-dashboard --head e37b1ea0d --result pass|pass-with-notes|block --body-file <path> --answers <this request id>`.

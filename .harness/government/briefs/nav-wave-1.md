@@ -35,10 +35,19 @@ and a landing without one breaks AGENTS.md. Every change is made, gated and land
   load average next to each timing (load is high; say so rather than drop the number).
 - **Full runs are serialized** (prime, 2026-11-12 11:20): one chainglass `just fft`/`just test` at a time,
   only at 1-min load < 60, in the order the prime gives; announce start/finish and hand on with "fft done".
-- **Browser proofs never reach Jordan's tmux** (incident 2026-11-12, ctx-max): a spare-port server's
-  terminal sidecar talks to the default tmux server, where Jordan's sessions live, and the overlay can
-  attach one after a client-side navigation. Start your spare-port Next server and sidecar with `TMUX`
-  unset and `TMUX_TMPDIR=/tmp/<slug>-tmux`, and make scratch sessions there.
+- **Browser proofs never reach Jordan's tmux** (incidents 2026-11-12: ctx-max overlay attach; and the
+  reviewer's `tmux kill-server` at 14:18:59 and 15:34:46, which **killed the default tmux server and every
+  pij seat on the machine, twice**). Cause: tmux 3.6a silently ignores a `TMUX_TMPDIR` that does not
+  exist and falls back to the default socket, so the old rule here ("`TMUX_TMPDIR=/tmp/<slug>-tmux`")
+  made "private" commands hit the real server. The rule now:
+  - **Never run `tmux kill-server`.** Tear down a scratch session with
+    `tmux -L <slug> kill-session -t <scratch>`.
+  - Every tmux command you type uses an explicit socket: `tmux -L <slug> ...` (or `-S /abs/path`).
+  - Servers that run bare `tmux` (Next, the terminal sidecar) get a private dir that **exists**:
+    `D=/tmp/<slug>-tmux; mkdir -p "$D"; chmod 700 "$D"`, then start them with `env -u TMUX -u TMUX_PANE TMUX_TMPDIR="$D"`.
+  - Before anything else, prove the socket is private:
+    `env -u TMUX TMUX_TMPDIR="$D" tmux display -p '#{socket_path}'` must print a path under `$D`, never
+    `/private/tmp/tmux-501/default`. If it prints the default, stop.
 - **The terminal keeps working, always** (Jordan, 2026-11-12): any change touching auth, `proxy.ts`,
   `instrumentation.ts`, the localhost guard, server startup, ports, or the terminal sidecar must show,
   on a spare-port build with a private tmux server, that xterm.js connects to its sidecar, accepts

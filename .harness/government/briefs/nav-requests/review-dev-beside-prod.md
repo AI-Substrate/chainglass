@@ -12,6 +12,6 @@ Look hard at:
 
 Full gate: the author's `just fft` (14:31-14:41, rc 0, 559 files, 7453 tests) ran on 7688c86cf + both commits, so it also contains e37b1ea0d. Note that in your e37b1ea0d record as the full-suite remediation evidence if you agree it qualifies.
 
-Proof servers: reuse the author's build if you need one; spare ports free on the LAN IP, private tmux (TMUX unset, TMUX_TMPDIR=/tmp/reviewer-tmux), stop after.
+Proof servers: reuse the author's build if you need one; spare ports free on the LAN IP; private tmux ONLY per nav-wave-1.md "Browser proofs never reach Jordan's tmux" (mkdir -p the TMUX_TMPDIR first, prove the socket path, never `tmux kill-server`). ~~TMUX_TMPDIR=/tmp/reviewer-tmux~~ (that dir never existed, so it hit the default server: 2026-11-12 incident). Stop after.
 
 Publish: `pij output verdict --role reviewer --subject plan:nav-dev-beside-prod --head f71668fa0 --result pass|pass-with-notes|block --body-file <path> --answers <this request id>`.
