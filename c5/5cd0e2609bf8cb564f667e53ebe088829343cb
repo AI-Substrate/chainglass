@@ -1,0 +1,19 @@
+.harness/government/briefs/nav-requests/ctx-max.md
+  s_c2ffc6691b2daa::t_6f17fd9581b3ab 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "c55cd0e2609bf8cb564f667e53ebe088829343cb",
+  "prompts": {},
+  "sessions": {
+    "s_c2ffc6691b2daa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3fa897fc-7121-4ff5-a5b7-c1ada6253981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
