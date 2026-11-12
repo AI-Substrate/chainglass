@@ -157,11 +157,13 @@ dev-https:
     set -euo pipefail
     HTTPS_PORT=${HTTPS_PORT:-$(( ${PORT:-3000} + 30 ))} just dev
 
-# The TLS front's certificate (`just certs`). Checked before any port is claimed.
+# The TLS front's certificate and key: the exact pair it will serve (CHAINGLASS_TLS_CERT /
+# CHAINGLASS_TLS_KEY, else `just certs`' files) must load and match. Checked before any port is
+# claimed, so a bad pair never stops a running server.
 _require-certs:
     #!/usr/bin/env bash
-    if [ ! -f apps/web/certificates/chainglass.pem ] || [ ! -f apps/web/certificates/chainglass-key.pem ]; then
-      echo "❌ No HTTPS certificate (apps/web/certificates/chainglass.pem). Run: just certs"
+    if ! pnpm -s tsx apps/web/src/lib/tls-front.ts check-certs; then
+      echo "❌ The TLS front cannot serve that certificate. Run: just certs (or fix CHAINGLASS_TLS_CERT / CHAINGLASS_TLS_KEY)"
       exit 1
     fi
 

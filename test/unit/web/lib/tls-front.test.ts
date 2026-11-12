@@ -37,6 +37,8 @@ import {
   type TlsFront,
   allowedOriginsBehindFront,
   certOrigins,
+  certPairProblem,
+  certPaths,
   readRemoteViewPort,
   startTlsFront,
 } from '../../../../apps/web/src/lib/tls-front';
@@ -170,7 +172,8 @@ function request(
 function upgrade(
   port: number,
   path: string,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
+  method = 'GET'
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders; socket: net.Socket }> {
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -178,6 +181,7 @@ function upgrade(
       port,
       ca: cert,
       path,
+      method,
       headers: { connection: 'Upgrade', upgrade: 'websocket', ...headers },
     });
     req.on('upgrade', (res, socket) =>
@@ -359,6 +363,188 @@ describe('tls-front: WebSocket upgrades', () => {
     const f = await front(next.port, () => null);
     const r = await upgrade(f.httpsPort, '/remote-view-ws/stream');
     expect(r.status).toBe(502);
+  });
+
+  // F4 (review of ae18b1254): streamd serves REST (/health, /shutdown) on the same port and
+  // treats anything but the /stream WebSocket as REST, so an Upgrade header is no boundary.
+  it.each([
+    ['GET', '/remote-view-ws/health', {}],
+    ['POST', '/remote-view-ws/shutdown', {}],
+    ['GET', '/remote-view-ws', {}],
+    ['GET', '/remote-view-ws/', {}],
+    ['GET', '/remote-view-ws//stream', {}],
+    ['GET', '/remote-view-ws/stream/../health', {}],
+    ['GET', '/remote-view-ws/stream/x', {}],
+    ['GET', '/remote-view-ws/stream', { upgrade: 'h2c' }],
+    ['POST', '/remote-view-ws/stream', {}],
+  ] as const)(
+    'an upgrade-marked %s %s never reaches streamd (404)',
+    async (method, path, extra) => {
+      const next = await upgradeUpstream();
+      const streamd = await upgradeUpstream();
+      const f = await front(next.port, () => streamd.port);
+      const r = await upgrade(f.httpsPort, path, extra, method);
+      cleanups.push(async () => {
+        r.socket.destroy();
+      });
+      expect(r.status).toBe(404);
+      expect(streamd.hits).toEqual([]);
+      expect(next.hits).toEqual([]);
+    }
+  );
+});
+
+describe('tls-front: close() with live connections (F3)', () => {
+  it('ends live upgraded and terminal-tunnel sockets and resolves promptly', async () => {
+    let nextPort = 0;
+    let sidecar: net.Server | undefined;
+    for (let attempt = 0; attempt < 20 && !sidecar; attempt++) {
+      const s = http.createServer();
+      s.on('upgrade', (_req, socket) => {
+        socket.write(
+          'HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n'
+        );
+        socket.pipe(socket);
+      });
+      nextPort = await listen(s);
+      const side = net.createServer((sock) => sock.pipe(sock));
+      try {
+        await listen(side, nextPort + TERMINAL_PORT_OFFSET);
+        sidecar = side;
+        cleanups.push(closeServer(s));
+      } catch {
+        await closeServer(s)();
+      }
+    }
+    if (!sidecar) throw new Error('no free port pair for the sidecar');
+    cleanups.push(closeServer(sidecar));
+    const f = await startTlsFront({
+      cert,
+      key,
+      host: '127.0.0.1',
+      httpsPort: 0,
+      nextPort,
+      remoteViewPort: () => null,
+    });
+    const ws = await upgrade(f.httpsPort, '/_next/webpack-hmr');
+    expect(ws.status).toBe(101);
+    const tunnel = tls.connect({
+      host: '127.0.0.1',
+      port: f.terminalPort,
+      ca: cert,
+      servername: 'localhost',
+    });
+    await new Promise<void>((resolve, reject) => {
+      tunnel.once('secureConnect', () => resolve());
+      tunnel.once('error', reject);
+    });
+    cleanups.push(async () => {
+      ws.socket.destroy();
+      tunnel.destroy();
+    });
+    tunnel.write('hello');
+    await new Promise((resolve) => tunnel.once('data', resolve));
+    tunnel.on('error', () => {});
+    ws.socket.on('error', () => {});
+    const wsClosed = new Promise((resolve) => ws.socket.once('close', resolve));
+    const tunnelClosed = new Promise((resolve) => tunnel.once('close', resolve));
+
+    // The oracle is bounded completion: a real-clock bound is the assertion itself (before the
+    // fix close() waited until the peer hung up, i.e. forever here).
+    const closed = await Promise.race([
+      f.close().then(() => 'closed'),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 2000)),
+    ]);
+    expect(closed).toBe('closed');
+    await Promise.all([wsClosed, tunnelClosed]);
+  });
+});
+
+describe('tls-front: upstream loss mid-response (F5)', () => {
+  /** An SSE upstream that sends one event, then waits for the test to `finish` or `kill` it. */
+  async function sseUpstream(): Promise<{ port: number; kill: () => void; finish: () => void }> {
+    let kill = () => {};
+    let finish = () => {};
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.write('data: first\n\n');
+      kill = () => req.socket.destroy();
+      finish = () => res.end('data: last\n\n');
+    });
+    const port = await listen(server);
+    cleanups.push(closeServer(server));
+    return { port, kill: () => kill(), finish: () => finish() };
+  }
+
+  it('ends the client response when the upstream connection dies mid-stream', async () => {
+    const up = await sseUpstream();
+    const f = await front(up.port);
+    const outcome = await new Promise<string>((resolve) => {
+      https
+        .get({ host: '127.0.0.1', port: f.httpsPort, ca: cert, path: '/api/events/mux' }, (res) => {
+          res.once('data', () => up.kill());
+          res.on('error', () => resolve('ended'));
+          res.on('close', () => resolve(res.complete ? 'complete' : 'ended'));
+        })
+        .on('error', () => resolve('ended'));
+      // Real-clock bound = the assertion: before the fix the response stayed open indefinitely.
+      setTimeout(() => resolve('hung'), 2000);
+    });
+    expect(outcome).toBe('ended');
+  });
+
+  it('still delivers a stream that finishes normally, complete', async () => {
+    const up = await sseUpstream();
+    const f = await front(up.port);
+    const body = await new Promise<string>((resolve, reject) => {
+      https
+        .get({ host: '127.0.0.1', port: f.httpsPort, ca: cert, path: '/api/events/mux' }, (res) => {
+          let text = '';
+          res.once('data', () => up.finish());
+          res.on('data', (c) => {
+            text += c;
+          });
+          res.on('end', () => resolve(text));
+        })
+        .on('error', reject);
+    });
+    expect(body).toBe('data: first\n\ndata: last\n\n');
+  });
+});
+
+describe('certPairProblem / certPaths (F2)', () => {
+  it('reads CHAINGLASS_TLS_CERT / CHAINGLASS_TLS_KEY, else the `just certs` files', () => {
+    expect(certPaths({})).toEqual({
+      cert: 'apps/web/certificates/chainglass.pem',
+      key: 'apps/web/certificates/chainglass-key.pem',
+    });
+    expect(certPaths({ CHAINGLASS_TLS_CERT: '/c.pem', CHAINGLASS_TLS_KEY: '/k.pem' })).toEqual({
+      cert: '/c.pem',
+      key: '/k.pem',
+    });
+  });
+
+  it('accepts a valid custom pair wherever it lives', () => {
+    expect(certPairProblem({ cert: join(dir, 'cert.pem'), key: join(dir, 'key.pem') })).toBeNull();
+  });
+
+  it('names the missing file when the selected key does not exist', () => {
+    const missing = join(dir, 'missing-key.pem');
+    expect(certPairProblem({ cert: join(dir, 'cert.pem'), key: missing })).toContain(missing);
+  });
+
+  it('rejects a key that does not match the certificate', () => {
+    const other = join(dir, 'other-key.pem');
+    execFileSync(
+      'openssl',
+      ['genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-out', other],
+      {
+        stdio: 'ignore',
+      }
+    );
+    expect(certPairProblem({ cert: join(dir, 'cert.pem'), key: other })).toContain(
+      'does not match'
+    );
   });
 });
 

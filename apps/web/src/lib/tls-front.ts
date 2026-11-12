@@ -26,12 +26,13 @@
  *
  * Run: `pnpm tsx apps/web/src/lib/tls-front.ts` from the repo root (the recipes do).
  * `… tls-front.ts origins terminal|remote-view` prints the Origin allowlist that server needs
- * behind the front (`allowedOriginsBehindFront`).
+ * behind the front (`allowedOriginsBehindFront`); `… tls-front.ts check-certs` exits 1 unless the
+ * configured certificate and key load and match (`certPairProblem`).
  * Env: PORT (Next, default 3000), HTTPS_PORT (default PORT + 30), TLS_FRONT_HOST (listen address,
  * default all interfaces), CHAINGLASS_TLS_CERT / CHAINGLASS_TLS_KEY (default
  * apps/web/certificates/chainglass{,-key}.pem, made by `just certs`), CHAINGLASS_FRONT_SECRET.
  */
-import { X509Certificate } from 'node:crypto';
+import { type KeyObject, X509Certificate, createPrivateKey } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
@@ -146,6 +147,21 @@ function isRemoteViewPath(url: string): boolean {
   return path === REMOTE_VIEW_WSS_PROXY_PATH || path.startsWith(`${REMOTE_VIEW_WSS_PROXY_PATH}/`);
 }
 
+/**
+ * The one streamd endpoint the front exposes: the `/stream` WebSocket. streamd also serves REST
+ * on its port (`/health`, `/shutdown`, …) and treats any request there as REST unless it is that
+ * WebSocket, whatever Upgrade header it carries, so the front admits only `GET
+ * /remote-view-ws/stream[?…]` with `Upgrade: websocket`. Everything else under the prefix is 404.
+ */
+function streamdPath(req: http.IncomingMessage): string | null {
+  const url = req.url ?? '/';
+  const q = url.indexOf('?');
+  const pathname = q === -1 ? url : url.slice(0, q);
+  if (pathname !== `${REMOTE_VIEW_WSS_PROXY_PATH}/stream`) return null;
+  if (req.method !== 'GET' || req.headers.upgrade?.toLowerCase() !== 'websocket') return null;
+  return `/stream${q === -1 ? '' : url.slice(q)}`;
+}
+
 function pipeBothWays(a: net.Socket, b: net.Socket): void {
   a.on('error', () => b.destroy());
   b.on('error', () => a.destroy());
@@ -168,6 +184,15 @@ function listen(server: net.Server, port: number, host: string | undefined): Pro
 export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
   const agent = new http.Agent({ keepAlive: true });
   let publicPort = opts.httpsPort;
+  // Upgraded and tunnelled sockets: closeAllConnections() does not see them (an upgraded socket
+  // is detached from the HTTP server; the terminal server is a raw TLS server), so close() ends
+  // them itself.
+  const live = new Set<net.Socket>();
+  const track = (socket: net.Socket): net.Socket => {
+    live.add(socket);
+    socket.once('close', () => live.delete(socket));
+    return socket;
+  };
 
   const server = https.createServer({ cert: opts.cert, key: opts.key });
 
@@ -195,6 +220,13 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
       res.writeHead(up.statusCode ?? 502, up.statusMessage, responseHeaders(up.rawHeaders));
       // Send headers now: a stream (SSE) may not write a body byte for a while.
       res.flushHeaders();
+      // pipe() ends `res` only when `up` ends cleanly. If the upstream connection dies mid-body
+      // (Next restarting under an open SSE), end the client's response too, so EventSource sees
+      // the loss and reconnects instead of waiting on a half-open stream.
+      up.once('close', () => {
+        if (!up.complete) res.destroy();
+      });
+      up.on('error', () => res.destroy());
       up.pipe(res);
     });
     upstream.on('error', (err) => {
@@ -211,14 +243,19 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
   });
 
   server.on('upgrade', (req: http.IncomingMessage, socket: net.Socket, head: Buffer) => {
+    track(socket);
     const url = req.url ?? '/';
     let port: number | null = opts.nextPort;
     let path = url;
     const toStreamd = isRemoteViewPath(url);
     if (toStreamd) {
+      const streamPath = streamdPath(req);
+      if (streamPath === null) {
+        socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
+        return;
+      }
       port = opts.remoteViewPort();
-      path = url.slice(REMOTE_VIEW_WSS_PROXY_PATH.length) || '/';
-      if (!path.startsWith('/')) path = `/${path}`;
+      path = streamPath;
     }
     if (port === null) {
       socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');
@@ -230,7 +267,7 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
       keepUpgrade: true,
       frontSecret: toStreamd ? undefined : opts.frontSecret,
     });
-    const upstream = net.connect(port, '127.0.0.1');
+    const upstream = track(net.connect(port, '127.0.0.1'));
     upstream.once('connect', () => {
       let requestHead = `${req.method} ${path} HTTP/1.1\r\n`;
       for (let i = 0; i < headers.length; i += 2)
@@ -247,7 +284,10 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
   // Terminal: tunnel the TLS stream's bytes to the sidecar. It authenticates the upgrade itself
   // (Origin + JWT), so the front neither parses nor rewrites anything here.
   const terminal = tls.createServer({ cert: opts.cert, key: opts.key }, (socket) => {
-    pipeBothWays(socket, net.connect(opts.nextPort + TERMINAL_PORT_OFFSET, '127.0.0.1'));
+    pipeBothWays(
+      track(socket),
+      track(net.connect(opts.nextPort + TERMINAL_PORT_OFFSET, '127.0.0.1'))
+    );
   });
 
   publicPort = await listen(server, opts.httpsPort, opts.host);
@@ -265,6 +305,7 @@ export async function startTlsFront(opts: TlsFrontOptions): Promise<TlsFront> {
     terminalPort,
     async close() {
       server.closeAllConnections();
+      for (const socket of live) socket.destroy();
       await Promise.all([
         new Promise((r) => server.close(r)),
         new Promise((r) => terminal.close(r)),
@@ -307,6 +348,35 @@ export function certOrigins(certPem: string | Buffer, port: number): string[] {
     if (net.isIPv4(ip)) out.push(`https://${ip}:${port}`);
   }
   return out;
+}
+
+/** The certificate and key the front serves: CHAINGLASS_TLS_CERT / _KEY, else `just certs`' files. */
+export function certPaths(env: Partial<NodeJS.ProcessEnv>): { cert: string; key: string } {
+  return {
+    cert: env.CHAINGLASS_TLS_CERT || 'apps/web/certificates/chainglass.pem',
+    key: env.CHAINGLASS_TLS_KEY || 'apps/web/certificates/chainglass-key.pem',
+  };
+}
+
+/**
+ * Why the front could not serve this pair (a file missing or unreadable, not a certificate or
+ * key, or a key that does not match the certificate), else null. `_require-certs` runs it on the
+ * exact paths the front will read, before any port is claimed.
+ */
+export function certPairProblem(paths: { cert: string; key: string }): string | null {
+  let cert: X509Certificate;
+  try {
+    cert = new X509Certificate(readFileSync(paths.cert));
+  } catch (err) {
+    return `certificate ${paths.cert}: ${(err as Error).message}`;
+  }
+  let key: KeyObject;
+  try {
+    key = createPrivateKey(readFileSync(paths.key));
+  } catch (err) {
+    return `key ${paths.key}: ${(err as Error).message}`;
+  }
+  return cert.checkPrivateKey(key) ? null : `key ${paths.key} does not match ${paths.cert}`;
 }
 
 function splitOrigins(value: string | undefined): string[] | null {
@@ -356,14 +426,19 @@ export async function allowedOriginsBehindFront(
 if (process.argv[1]?.endsWith('tls-front.ts')) {
   const nextPort = Number(process.env.PORT ?? 3000);
   const httpsPort = Number(process.env.HTTPS_PORT ?? nextPort + 30);
-  const certPath = process.env.CHAINGLASS_TLS_CERT ?? 'apps/web/certificates/chainglass.pem';
-  const keyPath = process.env.CHAINGLASS_TLS_KEY ?? 'apps/web/certificates/chainglass-key.pem';
+  const paths = certPaths(process.env);
   const root = process.cwd();
   const server = process.argv[3];
+  if (process.argv[2] === 'check-certs') {
+    // `tls-front.ts check-certs`: exit 1 unless the front could serve its configured pair.
+    const problem = certPairProblem(paths);
+    if (problem) console.error(problem);
+    process.exit(problem ? 1 : 0);
+  }
   if (process.argv[2] === 'origins' && (server === 'terminal' || server === 'remote-view')) {
     // `tls-front.ts origins terminal|remote-view`: the allowlist for that server's env var.
     const origins = await allowedOriginsBehindFront(server, {
-      certPem: readFileSync(certPath),
+      certPem: readFileSync(paths.cert),
       httpsPort,
       nextPort,
       env: process.env,
@@ -372,8 +447,8 @@ if (process.argv[1]?.endsWith('tls-front.ts')) {
     process.exit(0);
   }
   const front = await startTlsFront({
-    cert: readFileSync(certPath),
-    key: readFileSync(keyPath),
+    cert: readFileSync(paths.cert),
+    key: readFileSync(paths.key),
     host: process.env.TLS_FRONT_HOST || undefined,
     httpsPort,
     nextPort,

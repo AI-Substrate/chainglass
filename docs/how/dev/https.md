@@ -74,12 +74,13 @@ serving plain HTTP unchanged:
 |---|---|
 | `https://<name>:<HTTPS_PORT>` | Next, `http://127.0.0.1:<PORT>` (requests and WebSocket upgrades) |
 | `wss://<name>:<HTTPS_PORT + 1500>` | terminal sidecar, `ws://127.0.0.1:<PORT + 1500>` (bytes tunnelled; the sidecar checks Origin + JWT) |
-| `wss://<name>:<HTTPS_PORT>/remote-view-ws/…` | streamd, `ws://127.0.0.1:<daemon port>/…` (prefix stripped; upgrades only) |
+| `wss://<name>:<HTTPS_PORT>/remote-view-ws/stream` | streamd's `/stream` WebSocket, `ws://127.0.0.1:<daemon port>/stream` (nothing else under the prefix) |
 
 The browser dials the terminal at page port + 1500, so no client change is needed. streamd's port
 comes from `.chainglass/streamd-<PORT>.json`, else `CG_REMOTE_VIEW__DAEMON_PORT`, else `PORT + 1501`.
-Plain HTTP under `/remote-view-ws` gets 404: streamd's HTTP endpoints (health, shutdown) stay
-loopback-only.
+Only `GET /remote-view-ws/stream` with `Upgrade: websocket` reaches streamd. Everything else under
+`/remote-view-ws` gets 404, with or without an Upgrade header: streamd treats any other request
+as REST, and its HTTP endpoints (health, shutdown) stay loopback-only.
 
 Every request reaches Next from 127.0.0.1, so the front sets the forwarded headers itself:
 `X-Forwarded-For` is overwritten with the client's socket address (never appended to, never the
@@ -96,7 +97,8 @@ PORT=3000 HTTPS_PORT=3030 pnpm tsx apps/web/src/lib/tls-front.ts
 
 Env: `PORT` (Next, default 3000), `HTTPS_PORT` (default `PORT + 30`), `TLS_FRONT_HOST` (listen
 address, default all interfaces), `CHAINGLASS_TLS_CERT` / `CHAINGLASS_TLS_KEY` (default the
-`just certs` files), `CHAINGLASS_FRONT_SECRET` (below).
+`just certs` files), `CHAINGLASS_FRONT_SECRET` (below). Before claiming any port the recipes run
+`tls-front.ts check-certs`, which fails unless that exact pair loads and the key matches.
 
 ### Who the client is behind the front
 

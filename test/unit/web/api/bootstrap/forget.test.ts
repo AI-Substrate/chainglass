@@ -53,16 +53,29 @@ describe('POST /api/bootstrap/forget', () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
-  it('over plain http in production: the clearing cookie has no Secure', async () => {
+  it('over plain http in production: the plain-name clear has no Secure', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     try {
       const res = await POST(req(_peerHeaderForTests('192.168.1.70')));
-      const setCookie = (res.headers.get('set-cookie') ?? '').toLowerCase();
-      expect(setCookie).toContain('max-age=0');
-      expect(setCookie).not.toContain('secure');
+      const plain = res.headers
+        .getSetCookie()
+        .find((c) => c.startsWith(`${BOOTSTRAP_COOKIE_NAME}=`));
+      expect(plain?.toLowerCase()).toContain('max-age=0');
+      expect(plain?.toLowerCase()).not.toContain('secure');
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  // F1 (review of ae18b1254): http://localhost is a secure context, so a sign-in over
+  // https://localhost leaves a __Secure- cookie that http://localhost keeps sending.
+  it('over plain http://localhost: also clears the __Secure- name, with Secure', async () => {
+    const res = await POST(req(_peerHeaderForTests('127.0.0.1')));
+    const secureClear = res.headers
+      .getSetCookie()
+      .find((c) => c.startsWith(`${BOOTSTRAP_COOKIE_NAME_SECURE}=`));
+    expect(secureClear?.toLowerCase()).toContain('max-age=0');
+    expect(secureClear?.toLowerCase()).toContain('; secure');
   });
 
   it('over https (behind the TLS front): clears both names, with Secure', async () => {

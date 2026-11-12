@@ -20,14 +20,17 @@ function buildClearCookie(name: string, secure: boolean): string {
 }
 
 /**
- * Clears the cookie under both names `/api/bootstrap/verify` may have set. `Secure` follows the
- * request's real protocol, as on verify; over plain HTTP the browser would ignore a
- * `__Secure-` cookie anyway, so only the plain name is cleared there.
+ * Clears the cookie under both names `/api/bootstrap/verify` may have set. The plain name's
+ * `Secure` follows the request's real protocol, as on verify. The `__Secure-` name is always
+ * cleared (it must carry `Secure`): browsers treat http://localhost as a secure context, so a
+ * sign-in over https://localhost leaves a `__Secure-` cookie that plain http://localhost still sends
+ * and `readBootstrapCookie` accepts. Over http on any other host the browser ignores the Secure
+ * clear, which is harmless: it never had that cookie there.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const secure = requestClient(request.headers)?.secure === true;
   const headers = new Headers();
   headers.append('Set-Cookie', buildClearCookie(BOOTSTRAP_COOKIE_NAME, secure));
-  if (secure) headers.append('Set-Cookie', buildClearCookie(BOOTSTRAP_COOKIE_NAME_SECURE, true));
+  headers.append('Set-Cookie', buildClearCookie(BOOTSTRAP_COOKIE_NAME_SECURE, true));
   return NextResponse.json({ ok: true }, { status: 200, headers });
 }
