@@ -1,0 +1,16 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-test-load-7688c86.dd.json
+  h_9e71e8b09f7cf2 1-35
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-test-load-7688c86.dd.md
+  h_9e71e8b09f7cf2 1-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ffb095e4d2f10559b42d101d49af3ec6b610a5e1",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
