@@ -1,0 +1,18 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-f23-query-correction-approved-finish31.dd.json
+  h_9e71e8b09f7cf2 1-27
+.harness/government/community/roles/reviewer/memory/2026-11-12-f23-query-correction-approved-finish31.dd.md
+  h_9e71e8b09f7cf2 1-44
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  h_9e71e8b09f7cf2 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "35c6aeacea766952e4583761f13101fca0fa88ca",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
