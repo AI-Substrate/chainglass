@@ -1,0 +1,16 @@
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-ctx-max-2.dd.json
+  h_9e71e8b09f7cf2 1-33
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-ctx-max-2.dd.md
+  h_9e71e8b09f7cf2 1-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "bd73e84578fba187b23ef81cfc05d2343510c206",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
