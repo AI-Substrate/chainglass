@@ -1,0 +1,19 @@
+test/unit/web/proxy-login-redirect.test.ts
+  s_da4bb85142a2b5::t_6b0bef54728ac8 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d65ea0930e1cf5c80dccc66f1edb7da73673c329",
+  "prompts": {},
+  "sessions": {
+    "s_da4bb85142a2b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78503607-b6db-4a73-ab3b-ba7e79f6c152",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
