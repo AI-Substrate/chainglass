@@ -34,7 +34,10 @@ and a landing without one breaks AGENTS.md. Every change is made, gated and land
 - Measure the PRD's "Done when" for your item before and after, on the same machine, and quote the
   load average next to each timing (load is high; say so rather than drop the number).
 - **Full runs are serialized** (prime, 2026-11-12 11:20): one chainglass `just fft`/`just test` at a time,
-  only at 1-min load < 60, in the order the prime gives; announce start/finish and hand on with "fft done".
+  in the order the prime gives; announce start/finish and hand on with "fft done". ~~Only at 1-min load
+  < 60~~ retired 2026-11-12 ~16:05: the threshold existed only because real-process tests timed out under
+  load; test-load (7688c86cf, reviewed pass-with-notes) made full runs green under load. Runs started
+  before this time above 60 (e.g. crane 15:42 at 62.6) breached the rule then in force.
 - **Browser proofs never reach Jordan's tmux** (incidents 2026-11-12: ctx-max overlay attach; and the
   reviewer's `tmux kill-server` at 14:18:59 and 15:34:46, which **killed the default tmux server and every
   pij seat on the machine, twice**). Cause: tmux 3.6a silently ignores a `TMUX_TMPDIR` that does not
