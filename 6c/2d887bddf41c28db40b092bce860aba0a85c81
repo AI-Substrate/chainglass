@@ -1,0 +1,19 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-31-behavior-corrections-pass.dd.md
+  s_1f2c87f2c17dab::t_db4228ad1966f1 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6c2d887bddf41c28db40b092bce860aba0a85c81",
+  "prompts": {},
+  "sessions": {
+    "s_1f2c87f2c17dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8a614d4-b774-43d9-bc7e-06bc6821c9d4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
