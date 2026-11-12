@@ -1,0 +1,33 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"answers": "01a1cd15-c827-7681-babb-f2a126f16367",
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"requester": "pij-outer-bobcat",
+				"role": "coder",
+				"subject": "plan:nav-trace-idle",
+				"writer": "pij-formal-mole",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# plan:nav-trace-idle: PRD items 6 and 7 fixed and landed\n\ncoder/trace-idle (pij-formal-mole), 2026-11-12. **Commit 8c451497f on main** (on top of d98cb715a). It is a single commit with three sections, per the prime's ruling.\n\n## What landed\n\n- **fix-a (item 7, pij-rs stream):**\n  - `rs-event-stream.ts`: the stream's planned reconnect interval went from 5 s to 10 minutes.\n  - The `connected` status now reports whether the previous socket ended by that planned reconnect (`afterRecycle`).\n  - `start-pij-poller.ts` logs a planned reconnect at debug, and keeps info for the first connect and any connect after a failure.\n  - Tests updated: `test/unit/web/pij/rs-event-stream.test.ts`.\n- **fix-b (item 6, notes overlay):** `NotesOverlayPanel` passes `null` to `useNotes` until the overlay or note modal has opened.\n- **fix-c (item 6, browser):**\n  - The four git actions are replaced by one action, `fetchChangesSnapshot(worktreePath, { tree, changes })`, implemented in `services/changes-snapshot.ts`.\n  - `usePanelState`:\n    - fetches working changes and recent files only while the Changes panel shows;\n    - otherwise marks them stale, so they reload when the panel is next opened;\n    - routes file-change refreshes through `scheduleRefreshChanges`, which waits at least 2 s between refreshes, does nothing while the tab is hidden, and refreshes once when it is shown again.\n  - The refresh button still refreshes immediately.\n  - Four new behaviour cases in `test/unit/web/features/041-file-browser/use-panel-state.test.tsx`.\n- **Docs:** 089 `domain.md`, file-browser `domain.md`, file-notes `domain.md`, `docs/how/file-browser.md`, `DEPENDENCY_MAP.md`.\n- **Dropped:** `refetchIntervalInBackground: false`. TanStack Query 5.103.1 already defaults to it (`queryObserver.js:271`); the prime agreed.\n\n## For the reviewer (quokka)\n\n- **Build kept:** worktree `/Users/jordanknight/substrate/chainglass-trace-idle-r` at the landed head 8c451497f, `apps/web/.next/BUILD_ID` = `pMh2FQWf7fwyDSsj1GFcN`. The manifest contains `fetchChangesSnapshot`, and none of the four removed actions.\n  - Built with `nice -n 19 pnpm turbo build --filter=@chainglass/web...` at 17:09 after the rebase.\n  - Serve it on :3106 with `D=/tmp/trace-idle-tmux` (mode 700). The socket check passed: `env -u TMUX TMUX_TMPDIR=$D tmux display -p '#{socket_path}'` answered with \"error connecting to /private/tmp/trace-idle-tmux/tmux-501/default\".\n  - Server command: `env -u TMUX -u TMUX_PANE TMUX_TMPDIR=$D nice -n 19 pnpm exec next start --port 3106`. No terminal sidecar.\n- **Full fft log:** `/tmp/trace-idle/fft.log`, with times and load in `/tmp/trace-idle/fft.meta`.\n  - Ran 16:59:22-17:07:04, load 43 → 25. Exit 0.\n  - biome: 1806 files, clean.\n  - turbo build: 7/7.\n  - typecheck: all 9 tsconfigs.\n  - Tests: 552 files passed, 7 skipped; 7307 tests passed.\n  - `pnpm audit --audit-level=high`: passed (3 low, 16 moderate).\n  - The fft ran on the tree just before the rebase. The rebase over 7 commits was clean. After it I re-ran 57 test files (606 tests: pij stream/bootstrap, 041-file-browser, 071-file-notes) and the `apps/web` typecheck, all green.\n- **Idle-measurement results** (Playwright probe `/tmp/trace-idle/idle-action-probe.mjs`):\n\n  | When | Result file |\n  |---|---|\n  | Before, prod 60 s | `/tmp/trace-idle/result-1794443018484.json` |\n  | Before, prod 120 s | `/tmp/trace-idle/result-1794443384425.json` |\n  | Before, dev 60 s | `/tmp/trace-idle/result-1794444539990.json` |\n  | After, prod 60 s | `/tmp/trace-idle/result-1794467612658.json` |\n\n  The file-change probe is `/tmp/trace-idle/event-probe.mjs`; its output is `/tmp/trace-idle/event-probe-result.json`.\n- **Trace note (before):** published earlier under the same subject. The `chainglass-trace-idle` worktree (old base 0aebeb1a5) is also kept until the verdict.\n\n## Before → after (prod, same probe; the 60 s idle window opens 20 s after load)\n\n| Page | Load avg | Server actions on load | Server actions in 60 s idle |\n|---|---|---|---|\n| workspace, before | 141 → 109 | 4 (notes overlay) | 0 |\n| workspace, **after** | 60 → 19 | **0** | **0** |\n| browser, before | 141 → 109 | 9 | 4 (one file-change batch) |\n| browser, **after** | 60 → 19 | **4** (`fetchChangesSnapshot`, `fetchFilesWithNotes`, `checkFlowspaceAvailability`, `sweepStaleDrafts`) | **0** |\n| pij, before | 141 → 109 | 4 (notes overlay) | 0 |\n| pij, **after** | 60 → 19 | **0** | **0** |\n\nBefore, dev mode added 7 calls per workspace page load (the notes doFetch run twice by StrictMode, plus `fetchFilesWithNotesDetailed`). That source is gone now. I did not re-measure dev after the fix.\n\n**File-change refresh, browser page with the build's own worktree as `?worktree=`, after the fix (load ~17):**\n\n| Action | Server actions |\n|---|---|\n| 10 writes over 1 s, tab visible | **1** `fetchChangesSnapshot` (before: 4 per debounced 500 ms batch) |\n| 10 writes, tab hidden | **0** |\n| Tab shown again | **1** at once |\n| File deleted, visible | **1** |\n\n**Item 7, connects:**\n- Before: `[pij-rs] event stream connected` logged 10,201 times, at a median gap of 5.45 s.\n- After: the :3106 server logged **1** in 5 min 24 s, at first connect. The next planned reconnect is at 10 min and logs at debug.\n- That meets \"fewer than 10 per hour\" by design: a planned reconnect every 10 minutes is 6 an hour, and those reconnects don't log at info.\n\n## PRD done-when\n\n- **Item 6, \"idle workspace page makes zero server-action calls in 60 s\":** met. It was already 0 in idle before, and is now also 0 on load.\n- **Item 7, \"< 10 connects/hour on an idle server\":** met.\n\n## Also observed (not changed)\n\n- **Unwatched flow paths:** the flow watcher logs ENOENT once per workspace that has no `docs/plans` (17 workspaces) at every server start.\n- **Stale workspace from a test:** the worktree rescan logged `spawn git ENOENT` for a test-created workspace, `tg-real-agent-serial-*`, whose tmp directory no longer exists. Some test registers workspaces in the shared registry and doesn't remove them.\n- **No timer polling:** idle GETs are only `/api/worktree-activity` (30 s) and `/api/pij/windows` (30 s, pij page).\n"
+		}
+	]
+}
