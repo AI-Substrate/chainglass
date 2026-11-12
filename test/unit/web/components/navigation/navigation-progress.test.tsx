@@ -42,6 +42,9 @@ function App() {
         new tab
       </a>
       <SwitchButton href="/workspaces?worktree=%2Frepo%2Ffeature" />
+      {/* The same query as the page's, encoded the other way and in another key order. */}
+      <a href="/workspaces?worktree=%2Frepo%2Fmy+tree&panel=pij">plus-encoded</a>
+      <a href="/workspaces?panel=pij&worktree=%2Frepo%2Fmy%20tree">percent-encoded</a>
       <NavigationProgress />
     </div>
   );
@@ -99,6 +102,19 @@ describe('NavigationProgress', () => {
     click('here');
     click('new tab');
     fireEvent.click(screen.getByText('alpha'), { button: 0, metaKey: true });
+    wait(SHOW_DELAY_MS * 4);
+    expect(bar()).toBeNull();
+  });
+
+  it('never shows for the same query encoded differently (a worktree path with a space)', () => {
+    // On the page as `%20`, linked as `+` (and keys reordered); then the reverse.
+    arrive('/workspaces?panel=pij&worktree=%2Frepo%2Fmy%20tree', rerender);
+    click('plus-encoded');
+    wait(SHOW_DELAY_MS * 4);
+    expect(bar()).toBeNull();
+
+    arrive('/workspaces?worktree=%2Frepo%2Fmy+tree&panel=pij', rerender);
+    click('percent-encoded');
     wait(SHOW_DELAY_MS * 4);
     expect(bar()).toBeNull();
   });

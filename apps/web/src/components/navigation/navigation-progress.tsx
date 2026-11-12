@@ -22,12 +22,25 @@ export const SHOW_DELAY_MS = 150;
 export const GIVE_UP_MS = 20_000;
 const START_EVENT = 'navigation-progress:start';
 
+/**
+ * A query in one canonical form: decoded, re-encoded and sorted by key. `?q=a%20b` and `?q=a+b`
+ * (or the same keys in another order) are the same page, so they must not start a navigation
+ * the bar then waits on: both ends compare in this form.
+ */
+function canonicalQuery(params: URLSearchParams): string {
+  const sorted = new URLSearchParams(params);
+  sorted.sort();
+  return sorted.toString();
+}
+
 /** `href` resolved against the current page, if it leaves this URL for another in-app one. */
 function navigatesAway(href: string): boolean {
-  const target = new URL(href, window.location.href);
+  const here = new URL(window.location.href);
+  const target = new URL(href, here);
   return (
-    target.origin === window.location.origin &&
-    (target.pathname !== window.location.pathname || target.search !== window.location.search)
+    target.origin === here.origin &&
+    (target.pathname !== here.pathname ||
+      canonicalQuery(target.searchParams) !== canonicalQuery(here.searchParams))
   );
 }
 
@@ -68,7 +81,7 @@ function linkHref(event: MouseEvent): string | null {
 
 export function NavigationProgress() {
   const pathname = usePathname();
-  const search = useSearchParams().toString();
+  const search = canonicalQuery(useSearchParams());
   /** Increments per navigation start; 0 = none pending. */
   const [pending, setPending] = useState(0);
   const [visible, setVisible] = useState(false);
