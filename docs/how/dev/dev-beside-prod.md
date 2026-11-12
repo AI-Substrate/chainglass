@@ -43,6 +43,9 @@ routes) read only that server's own entry, so a token is valid only on the serve
   belongs to a live prod server or to its terminal sidecar (`PORT + 1500` of a prod entry).
 - `KILL_EXISTING=1` kills the listener in both cases, e.g. `KILL_EXISTING=1 just prod` to replace
   a running prod server with a fresh build.
+- Every recipe first checks what the servers need to start (`apps/web/.env.local`, which the
+  terminal sidecar loads with `tsx --env-file`; for prod also the build and node-pty), so a
+  failure never costs the running server.
 
 ## Prod serves its own copy of the build
 

@@ -26,6 +26,7 @@ dev:
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
+    just _require-sidecar-env
     just _claim-ports dev $NEXT_PORT $WS_PORT
     just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
@@ -34,6 +35,18 @@ dev:
       pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
         "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT" \
         "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+
+# The terminal sidecar loads apps/web/.env.local with `tsx --env-file`, which exits at once when
+# the file is missing — so a server would start without its terminal. Checked before any port is
+# claimed, so a missing file never costs a running server. A fresh worktree copies it from the main
+# checkout: `cp ../chainglass/apps/web/.env.local apps/web/`.
+_require-sidecar-env:
+    #!/usr/bin/env bash
+    if [ ! -f apps/web/.env.local ]; then
+      echo "❌ apps/web/.env.local is missing; the terminal sidecar (tsx --env-file) would exit at start."
+      echo "   Create it from apps/web/.env.example, or copy it from your main checkout."
+      exit 1
+    fi
 
 # Free the ports a server is about to bind. `mode` is the server being started:
 # - dev: kills a stale listener, unless the port belongs to a live prod server or its terminal
@@ -113,6 +126,7 @@ dev-https:
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
+    just _require-sidecar-env
     just _claim-ports dev $NEXT_PORT $WS_PORT
     just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
@@ -145,6 +159,7 @@ prod:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
+    just _require-sidecar-env
     CLAIM_CHECK_ONLY=1 just _claim-ports prod $NEXT_PORT $((NEXT_PORT + 1500))
     just build
     # Stage a copy of the fresh build (no caches, dev output or standalone bundle); prod-serve
@@ -178,6 +193,7 @@ prod-serve:
     fi
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
+    just _require-sidecar-env
     just _claim-ports prod $NEXT_PORT $WS_PORT
     just _promote-prod-build $NEXT_PORT
     # `next start` serves the precompiled build (minified, no on-demand compile) from the
