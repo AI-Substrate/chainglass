@@ -1,0 +1,14 @@
+.harness/government/reports/trace-idle-31d1584fa-composed-fft.log
+  h_9e71e8b09f7cf2 1-4283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "904759853b7d1699a5cd78c35d1c0ac39cc4748f",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
