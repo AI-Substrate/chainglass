@@ -1,3 +1,5 @@
+import { type Server, createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 // @vitest-environment node
 /**
  * Plan 088 Phase 5 — T003: daemon-backed RealRemoteViewService.
@@ -20,7 +22,7 @@ import {
 } from '@/features/088-remote-view/server/remote-view-service';
 import { resolveProductionDaemonConfig } from '@/features/088-remote-view/server/remote-view-service.production';
 import { FAKE_WINDOW } from '@/features/088-remote-view/testing/fixtures';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { remoteViewServiceContractTests } from '../../../../contracts/remote-view-service.contract';
 
 /**
@@ -211,14 +213,14 @@ describe('createHttpDaemonSessionsClient (live transport)', () => {
   const fakeResponse = (status: number, body?: unknown): Response =>
     new Response(body === undefined ? null : JSON.stringify(body), { status });
 
-  it('create() POSTs {windowId} with a Bearer token and returns the summary', async () => {
+  it('create() POSTs {windowId} with the token in the query string and returns the summary', async () => {
     /*
     Test Doc:
     - Why: the live transport must hit the daemon's JWT-gated POST /sessions with the right shape.
-    - Contract: create(port, windowId) → POST http://127.0.0.1:<port>/sessions, Bearer token, body {windowId}.
-    - Usage Notes: mintToken supplies the daemon JWT (aud=remote-view-ws) per call.
+    - Contract: create(port, windowId) → POST http://127.0.0.1:<port>/sessions?token=<jwt>, body {windowId}.
+    - Usage Notes: mintToken supplies the daemon JWT (aud=remote-view-ws) per call; streamd reads it from `?token=` only.
     - Quality Contribution: pins the daemon request contract before Phase-6 live wiring.
-    - Worked Example: create(7099, 34202) → POST …:7099/sessions, returns the daemon summary.
+    - Worked Example: create(7099, 34202) → POST …:7099/sessions?token=tok123, returns the daemon summary.
     */
     let captured: { url: string; init?: RequestInit } | undefined;
     const fetchFn: typeof fetch = async (url, init) => {
@@ -228,9 +230,8 @@ describe('createHttpDaemonSessionsClient (live transport)', () => {
     const client = createHttpDaemonSessionsClient({ mintToken: async () => 'tok123', fetchFn });
     const s = await client.create(7099, FAKE_WINDOW.id);
     expect(s).toEqual(SUMMARY);
-    expect(captured?.url).toBe('http://127.0.0.1:7099/sessions');
+    expect(captured?.url).toBe('http://127.0.0.1:7099/sessions?token=tok123');
     expect(captured?.init?.method).toBe('POST');
-    expect(new Headers(captured?.init?.headers).get('authorization')).toBe('Bearer tok123');
     expect(JSON.parse(String(captured?.init?.body))).toEqual({ windowId: FAKE_WINDOW.id });
   });
 
@@ -264,7 +265,7 @@ describe('createHttpDaemonSessionsClient (live transport)', () => {
     };
     const client = createHttpDaemonSessionsClient({ mintToken: async () => 't', fetchFn });
     await expect(client.remove(7099, 'ses_gone')).resolves.toBeUndefined();
-    expect(captured).toBe('DELETE http://127.0.0.1:7099/sessions/ses_gone');
+    expect(captured).toBe('DELETE http://127.0.0.1:7099/sessions/ses_gone?token=t');
   });
 
   it('remove() throws on a non-404 error', async () => {
@@ -279,6 +280,97 @@ describe('createHttpDaemonSessionsClient (live transport)', () => {
     const fetchFn: typeof fetch = async () => fakeResponse(500);
     const client = createHttpDaemonSessionsClient({ mintToken: async () => 't', fetchFn });
     await expect(client.remove(7099, 'ses_x')).rejects.toThrow(/500/);
+  });
+});
+
+// 3b) The same transport over real HTTP against a daemon that authenticates exactly like streamd's
+//     `WSServer.handleREST`: the JWT is read from `?token=` only; an Authorization header is ignored.
+describe('createHttpDaemonSessionsClient against a streamd-shaped daemon (?token= only)', () => {
+  const TOKEN = 'jwt-good';
+  const requests: string[] = [];
+  let server: Server;
+  let port: number;
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      requests.push(`${req.method} ${url.pathname}`);
+      const reply = (status: number, body: unknown) => {
+        res.writeHead(status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      if (url.pathname !== '/health' && url.searchParams.get('token') !== TOKEN) {
+        reply(401, { error: 'E_AUTH' });
+        return;
+      }
+      let raw = '';
+      req.on('data', (chunk) => {
+        raw += chunk;
+      });
+      req.on('end', () => {
+        if (req.method === 'POST' && url.pathname === '/sessions') {
+          const { windowId } = JSON.parse(raw) as { windowId: number };
+          reply(200, {
+            sessionId: `sess-${windowId}-1`,
+            windowId,
+            app: 'A',
+            title: 'T',
+            state: 'idle',
+          });
+        } else if (req.method === 'DELETE' && url.pathname.startsWith('/sessions/')) {
+          reply(200, { ok: true });
+        } else if (req.method === 'POST' && url.pathname === '/shutdown') {
+          reply(200, { ok: true });
+        } else {
+          reply(404, { error: 'not found' });
+        }
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    port = (server.address() as AddressInfo).port;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('create(), remove() and shutdown() authenticate and succeed', async () => {
+    /*
+    Test Doc:
+    - Why: B14 — Next sent the daemon JWT as `Authorization: Bearer` while streamd reads only `?token=`, so every attach 500'd with "daemon POST /sessions failed: 401".
+    - Contract: with the correct token, create → the daemon summary; remove → resolves; shutdown → resolves; all three reach the daemon past its auth guard.
+    - Usage Notes: a real node:http daemon, real fetch; the guard mirrors WSServer.handleREST (only /health is public).
+    - Quality Contribution: fails if any daemon REST call stops carrying the token where streamd reads it.
+    - Worked Example: create(port, 42) → {sessionId:'sess-42-1',…}; remove(port,'sess-42-1') ok; shutdown(port) ok.
+    */
+    requests.length = 0;
+    const client = createHttpDaemonSessionsClient({ mintToken: async () => TOKEN });
+    const s = await client.create(port, 42);
+    expect(s.sessionId).toBe('sess-42-1');
+    await expect(client.remove(port, s.sessionId)).resolves.toBeUndefined();
+    await expect(client.shutdown(port)).resolves.toBeUndefined();
+    expect(requests).toEqual(['POST /sessions', 'DELETE /sessions/sess-42-1', 'POST /shutdown']);
+  });
+
+  it('rejects a wrong token, and the old Bearer-header form of the right token, with 401', async () => {
+    /*
+    Test Doc:
+    - Why: the success case must be due to the token's position, not a permissive double. Reviewer's live oracle against native streamd: the same JWT as `?token=` → 200, as `Authorization: Bearer` → 401.
+    - Contract: a token the daemon does not accept ⇒ create/remove/shutdown each reject naming 401; the right token sent only as a Bearer header ⇒ 401.
+    - Usage Notes: remove() tolerates only 404, so a 401 still surfaces.
+    - Quality Contribution: proves the double enforces auth where streamd does, so the success test is meaningful.
+    - Worked Example: token 'jwt-bad' → rejects /401/ ×3; POST /sessions with `Authorization: Bearer jwt-good` → 401.
+    */
+    const client = createHttpDaemonSessionsClient({ mintToken: async () => 'jwt-bad' });
+    await expect(client.create(port, 42)).rejects.toThrow(/401/);
+    await expect(client.remove(port, 'sess-42-1')).rejects.toThrow(/401/);
+    await expect(client.shutdown(port)).rejects.toThrow(/401/);
+    const bearerOnly = await fetch(`http://127.0.0.1:${port}/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ windowId: 42 }),
+    });
+    expect(bearerOnly.status).toBe(401);
   });
 });
 

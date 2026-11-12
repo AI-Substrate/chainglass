@@ -164,6 +164,7 @@ function buildProductionManager(
   logger?: Pick<Console, 'info' | 'warn' | 'error'>,
   notifier?: ICentralEventNotifier
 ): ReturnType<typeof createDaemonManager> {
+  const daemonHttp = createHttpDaemonSessionsClient({ mintToken: mintDaemonToken });
   return createDaemonManager(
     {
       webPort: config.webPort,
@@ -186,10 +187,12 @@ function buildProductionManager(
       },
       fetchHealth: fetchDaemonHealth,
       shutdownDaemon: async (daemonPort) => {
+        // Best-effort graceful shutdown before respawn; a failure (unreachable, 401) falls through
+        // to the manager's grace-window SIGKILL escalation, so log it rather than throw.
         try {
-          await fetch(`http://127.0.0.1:${daemonPort}/shutdown`, { method: 'POST' });
-        } catch {
-          /* best-effort graceful shutdown before respawn */
+          await daemonHttp.shutdown(daemonPort);
+        } catch (err) {
+          logger?.warn(`[remote-view] daemon graceful shutdown failed: ${String(err)}`);
         }
       },
       // Escalation when a graceful /shutdown doesn't free the daemon's fixed port within the grace

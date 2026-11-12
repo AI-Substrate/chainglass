@@ -225,22 +225,31 @@ export interface HttpDaemonSessionsClientDeps {
   host?: string;
 }
 
+/** The HTTP daemon client: the `/sessions` transport plus the JWT-gated `POST /shutdown`. */
+export interface HttpDaemonClient extends DaemonSessionsClient {
+  /** `POST /shutdown` — graceful exit before a version-mismatch respawn. Throws on non-2xx. */
+  shutdown(daemonPort: number): Promise<void>;
+}
+
 /**
- * Live HTTP transport to the daemon's JWT-gated `/sessions` (Phase 4 contract).
- * Pure over its injected `mintToken`/`fetchFn`, so it is unit-testable; the
- * end-to-end path against a real daemon is verified live in Phase 6.
+ * Live HTTP client for the daemon's JWT-gated REST endpoints (Phase 4 contract).
+ * streamd reads the JWT from the `?token=` query parameter only — the same place as the WS
+ * upgrade (`WSServer.handleREST`); an `Authorization` header is ignored and earns a 401 (B14).
+ * Only `/health` is public, so every call here carries a freshly minted token.
+ * Pure over its injected `mintToken`/`fetchFn`, so it is unit-testable.
  */
 export function createHttpDaemonSessionsClient(
   deps: HttpDaemonSessionsClientDeps
-): DaemonSessionsClient {
+): HttpDaemonClient {
   const fetchFn = deps.fetchFn ?? fetch;
   const host = deps.host ?? '127.0.0.1';
+  const authedUrl = async (daemonPort: number, path: string): Promise<string> =>
+    `http://${host}:${daemonPort}${path}?token=${encodeURIComponent(await deps.mintToken())}`;
   return {
     async create(daemonPort, windowId) {
-      const token = await deps.mintToken();
-      const res = await fetchFn(`http://${host}:${daemonPort}/sessions`, {
+      const res = await fetchFn(await authedUrl(daemonPort, '/sessions'), {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ windowId }),
       });
       if (!res.ok) {
@@ -249,14 +258,19 @@ export function createHttpDaemonSessionsClient(
       return (await res.json()) as SessionSummary;
     },
     async remove(daemonPort, sessionId) {
-      const token = await deps.mintToken();
       const res = await fetchFn(
-        `http://${host}:${daemonPort}/sessions/${encodeURIComponent(sessionId)}`,
-        { method: 'DELETE', headers: { authorization: `Bearer ${token}` } }
+        await authedUrl(daemonPort, `/sessions/${encodeURIComponent(sessionId)}`),
+        { method: 'DELETE' }
       );
       // 404 ⇒ already gone ⇒ idempotent detach.
       if (!res.ok && res.status !== 404) {
         throw new Error(`daemon DELETE /sessions failed: ${res.status}`);
+      }
+    },
+    async shutdown(daemonPort) {
+      const res = await fetchFn(await authedUrl(daemonPort, '/shutdown'), { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`daemon POST /shutdown failed: ${res.status}`);
       }
     },
   };
