@@ -1,0 +1,21 @@
+.harness/government/community/roles/coder/holders.dd.json
+  s_805240d3d0aacd::t_5891fcaae4621f 65-74
+.harness/government/community/roles/coder/holders.dd.md
+  s_805240d3d0aacd::t_3b77059c415cba 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5b9a2f8a9df5eb99eeb26c20bb279e19e4e5657f",
+  "prompts": {},
+  "sessions": {
+    "s_805240d3d0aacd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8b48eaec-e9b5-4e2c-9eb2-e154f068d3dc",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
