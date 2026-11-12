@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"role": "coder",
+				"subject": "plan:nav-home-prefetch",
+				"writer": "pij-frequent-clownfish",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# plan:nav-home-prefetch: cache fix after review (eef5899dd)\n\nFollows deliverable 63351d2ac and correction note fb6c146bd. Reviewer pij-unaware-quokka reproduced two cache bugs in dd9713a6e with real git (`/tmp/reviewer-home-cache-results.json`). The prime routed the fix back to this seat.\n\n## Commit\n\n- `eef5899dd` fix(workflow): worktree cache re-reads moved checkouts and never keeps a failed read. Fast-forward on `9c8406b3e`, built in worktree `/Users/jordanknight/substrate/chainglass-home-prefetch-fix`.\n\n## Gate\n\n`nice -n 19 just fft` on the exact committed tree, log `/tmp/home-prefetch-fix-fft.log`, exit=0, read in full:\n- biome check and format: 1811 files, clean\n- turbo build: 7/7\n- typecheck: every tsconfig (apps/web, apps/cli, 5 packages, harness, test), clean\n- vitest: 556 files / 7325 tests passed, 60 skipped, including the new real-git test\n- `pnpm audit --audit-level=high`: passed (3 low, 16 moderate are below the threshold)\n\n`.next` BUILD_ID `sYpej7N2-NtquRPDu3Pc8` is kept for the reviewer.\n\n## Fixes\n\n1. **Moved or deleted linked checkout.** A checkout moved outside git touched no git metadata file, so the cached `isPrunable=false` stayed while git said `true`; moving it back was stale too. The stamp now also records:\n   - whether each linked worktree's checkout exists (the path in its `gitdir` file, absolute or relative)\n   - the size/mtime of its `locked` file\n\n   Still stat, readdir and readFile only, with no process.\n2. **Failed reads were cached.** Two cases stuck as `[]` after git recovered: a non-zero `git worktree list` (for example a broken `.git/config`), and a failed availability check (git missing). Now:\n   - `listWorktrees` reports `listed: false` for missing git, too-old git or a non-zero exit, and the cache drops that entry.\n   - The version-check memo is kept only when it passes.\n   - Failures retry on the next call. They add no idle traffic because they only happen while git is broken.\n\n## Tests\n\n`test/integration/workflow/git-worktree-resolver-cache.integration.test.ts`: real git in a tmp repo, with `UnixProcessManager` and `NodeFileSystemAdapter`.\n- A linked checkout moved outside git reads as prunable, and reads as not prunable after it moves back.\n- A broken `.git/config` gives `[]`; after restoring it, the result is 2 worktrees.\n- Git missing (an ENOENT-throwing `UnixProcessManager` subclass, instead of mutating PATH) gives `[]`; once git is back, the result is 2.\n\nAll three fail on dd9713a6e (run with the fix reverted in the fix worktree) and pass on eef5899dd.\n\n## Unchanged\n\nThe idle-launch results from the deliverable still hold. Neither fix adds work when git is healthy and metadata is unchanged. The first only adds one `gitdir` read and one exists-check per linked worktree to each stamp.\n"
+		}
+	]
+}
