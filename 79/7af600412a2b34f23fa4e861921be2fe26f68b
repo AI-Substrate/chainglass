@@ -1,0 +1,117 @@
+docs/how/dev/fast-feedback-loops.md
+  s_74c274059f328c::t_c672806734bd09 70-87
+packages/shared/src/utils/tmux-context.ts
+  s_f3eefcae664ebd::t_460dd9f422d7f3 19-21,28,30,39,43,59-60
+test/helpers/git.ts
+  s_265a8653f75285::t_b4270bbefdebd8 1-26
+test/integration/web/recent-feed-live-updates.integration.test.ts
+  s_169a60c13d81a7::t_868eb375a579fc 22,26,40,43-44,264-267,269-270
+test/integration/web/recent-feed-seed.integration.test.ts
+  s_169a60c13d81a7::t_50e3ed3da35b7c 18,20,31-34,45,48-52,55,59-60,75-78,104,106,132-134
+test/load-bounds.ts
+  s_169a60c13d81a7::t_6c6bfc3d2f82d9 1-25
+test/unit/cli/cg-binary-linkage.test.ts
+  s_400906c955949a::t_3857751be2f14d 11,14,16,18,22,26,39-41
+test/unit/event-popper/infrastructure.test.ts
+  s_f3eefcae664ebd::t_6f48f8c8501c54 17-21,234,251
+test/unit/shared/unix-process-manager.test.ts
+  s_f3eefcae664ebd::t_fd33632582b862 5,154,169,192,205,236
+test/unit/web/features/041-file-browser/file-list.test.ts
+  s_169a60c13d81a7::t_17ad19fed79518 16,21,24-26,30-31,80-81,101-102
+test/unit/web/features/071-pr-view/content-hash.test.ts
+  s_c2ffc6691b2daa::t_b14bdf53df6075 17,22,24
+test/unit/web/features/071-pr-view/get-all-diffs.test.ts
+  s_b35a367d6f39c9::t_f80e95f83b7e40 17,162,164,167-168,204-205,207-208,221
+test/unit/web/features/071-pr-view/git-branch-service.test.ts
+  s_b35a367d6f39c9::t_794d27001ff470 21,26,28,30-31,48-49,51-52,74-75,78-79
+test/unit/web/features/071-pr-view/per-file-diff-stats.test.ts
+  s_c2ffc6691b2daa::t_d20098867d25a6 17,84,86,88-89
+test/unit/web/features/071-pr-view/pr-view-entrypoints.test.ts
+  s_b35a367d6f39c9::t_e537d1ade621ea 22,27,29,31-32
+test/unit/web/features/_platform/git/git-cli.test.ts
+  s_c2ffc6691b2daa::t_2623e076f2364f 32,37,39-41,43-44,53,77,99,105,107,121
+test/unit/web/lib/server/git-diff-action.test.ts
+  s_067c2b25778899::t_f83bccc6516f5d 20
+vitest.config.ts
+  s_b8c448fa8de3a5::t_e55e2d4413d807 4,9-25,55-57,67-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "797af600412a2b34f23fa4e861921be2fe26f68b",
+  "prompts": {},
+  "sessions": {
+    "s_067c2b25778899": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b1132c9-b9da-425b-b933-b733090a94b9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_169a60c13d81a7": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "ebf7d1c3-644b-4707-a469-60d331a23b93",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_265a8653f75285": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c6ac40d-2afc-4f35-8603-dbd526d9140f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_400906c955949a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78ed4e8b-59e5-4278-a70e-2e49d39594e3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_74c274059f328c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "849b957d-4bf3-49bf-a0ab-aa8b8b5832ae",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_b35a367d6f39c9": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "d0fcfbab-5c6e-4a45-98c1-f973d352f31b",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_b8c448fa8de3a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d9e0b71-4241-4a30-8d92-0ecc453f2248",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_c2ffc6691b2daa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "3fa897fc-7121-4ff5-a5b7-c1ada6253981",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
