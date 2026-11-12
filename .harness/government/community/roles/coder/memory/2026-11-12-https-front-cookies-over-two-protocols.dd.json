@@ -1,0 +1,29 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "before touching the TLS front (tls-front.ts, prod-https/dev-https), bootstrap cookies, Origin allowlists, or adding any CG_* environment variable",
+				"tags": [
+					"https",
+					"tls",
+					"cookies",
+					"env",
+					"config",
+					"remote-view",
+					"security"
+				],
+				"title": "HTTPS front, cookies over two protocols, and CG_* env names"
+			}
+		},
+		{
+			"name": "body",
+			"value": "- The TLS front (apps/web/src/lib/tls-front.ts) is trusted by Next ONLY via a per-launch secret\n  (CHAINGLASS_FRONT_SECRET, header x-chainglass-front) from a loopback peer; socket-peer.ts deletes it from\n  process.env at install, and the sidecar runs with `env -u`. Never trust XFF/X-Forwarded-Proto without it;\n  test with spoofed XFF/Host/marker from the LAN (a curl matrix is the proof the prime asks for).\n- Use requestClient() (address + secure) for rate-limit keys and cookie Secure, never NODE_ENV or the raw\n  socket; unmap ::ffff: IPv4 or one client gets two rate-limit buckets.\n- Cookies ignore ports, and Chrome won't let http overwrite a Secure cookie of the same name/host. HTTPS uses\n  a separate name (__Secure-chainglass-bootstrap); read it through readBootstrapCookie everywhere (cookie\n  gate, BootstrapGate, local-auth, terminal/remote-view token routes, repo-info). Prove http AFTER https in\n  the same browser.\n- Origin allowlist env vars (TERMINAL_WS_ALLOWED_ORIGINS, CG_REMOTE_VIEW__ALLOWED_ORIGINS) REPLACE the\n  defaults, so the recipes compute default + https://<cert name>:HTTPS_PORT (`tls-front.ts origins ...`).\n  streamd inherits Next's env.\n- Until B9, env.parser rejected any CG_* name with a single underscore inside a segment (CG_SERVER_PORT,\n  CG_REMOTE_VIEW__DAEMON_PORT): Next/CLI config load threw → 500s. The B9 fix allows them; if you see\n  \"Invalid segment\", fix the parser, don't invent a non-CG_ alias (I did once; B9 reverted it). Any env\n  var you add for a Next-spawned child must be in turbo.json dev passThroughEnv too.\n- The managed headless browser never runs rAF/ResizeObserver; prove terminal resize at the WS protocol\n  level. The first resize message never applies on any transport (known), the second does.\n- The edit tool's relative paths resolve to the MAIN tree; use absolute worktree paths always.\n"
+		}
+	]
+}
