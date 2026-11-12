@@ -1,0 +1,170 @@
+apps/web/next.config.mjs
+  s_a7278f3b857a77::t_fd1fe45b33f2a4 23-26
+docs/how/auth/migration-bootstrap-code.md
+  s_da4bb85142a2b5::t_64f28b60c6231a 118
+docs/how/dev/dev-beside-prod.md
+  s_da4989fda66802::t_d5bcd4ef29a73a 1-66
+apps/cli/src/commands/remote-view.command.ts
+  s_805240d3d0aacd::t_391d6b413ad4b9 7-9,20,74-78,81
+apps/web/app/api/workspaces/[slug]/workflows/[graphSlug]/execution/_resolve-worktree.ts
+  s_6f34923d46bf53::t_70442e3413d99b 11,35-36,38-39,55,57,59
+docs/how/auth/bootstrap-code.md
+  s_da4bb85142a2b5::t_d045b343a19139 136
+apps/web/src/features/064-terminal/server/terminal-auth.ts
+  s_67c308b9d6ad31::t_c7cb4967c8878c 171-173,175,177,179
+justfile
+  s_67c308b9d6ad31::t_e45559808b23c1 18-20,26,35-67,101,116,118-144,146-147,153,155-157,160-163,166-168,172,403-404,665-680,683-692,694
+packages/mcp-server/src/tools/remote-view.tools.ts
+  s_805240d3d0aacd::t_9898fb2c4df3a3 8,28,59-63,66
+biome.json
+  s_a7278f3b857a77::t_0a278984b859be 30
+packages/workflow/src/features/023-central-watcher-notifications/source-watcher.constants.ts
+  s_a7278f3b857a77::t_21a5f8dab8c49c 49
+docs/how/harness-workflow.md
+  s_da4bb85142a2b5::t_443cb2289830a6 168
+packages/shared/src/sdk/workflow/workflow-api-client.interface.ts
+  s_db60ffd0febb56::t_d2ad30bb81aa74 136
+packages/shared/src/event-popper/port-discovery.ts
+  s_400906c955949a::t_911e6cd58a4152 5,10,14,16-22,25-28,35,42-55,110,115,121,151-152,154-204,206-212,214,220-221,223-224,226-227,229
+apps/web/src/lib/local-auth.ts
+  s_6f34923d46bf53::t_ddb61763f8e5df 34,67-70,101,104
+  s_805240d3d0aacd::t_247a725d4a021e 10
+.gitignore
+  s_cef8250554428f::t_069d17b87e3739 166-167
+  s_a7278f3b857a77::t_197e56c5e62418 84-85
+apps/web/instrumentation.ts
+  s_db60ffd0febb56::t_3e3d084dbe4b96 3,9,118-119,127-129,134,142-143,149-150,153,157-158
+AGENTS.md
+  s_805240d3d0aacd::t_4fcbfd507b49c8 50
+test/unit/web/api/workspaces/resolve-worktree-auth.test.ts
+  s_a7278f3b857a77::t_1661065035fb8e 7,18,58,64,77-78,84
+apps/cli/src/commands/positional-graph.command.ts
+  s_5951390a457540::t_d92b961eb1decc 187,193-195,208,217,227,236,238,2103,2396-2397,2430-2431
+docs/how/dev/served-payload-check.md
+  s_805240d3d0aacd::t_366b1b126cb2ca 14-15,39
+test/unit/event-popper/infrastructure.test.ts
+  s_e3460fd42f286c::t_8219f908623d43 1
+  s_6f34923d46bf53::t_c5fb6aae3e03da 7,9,142-144,146-150,158-159,164-169,173,175,178-180,184-186,190,192-232,377,383,386
+test/unit/cli/remote-view-command.test.ts
+  s_db60ffd0febb56::t_20b61faab7690e 6
+apps/web/proxy.ts
+  s_db60ffd0febb56::t_76b23e68805afa 4,82,86,112,114,116
+apps/web/src/features/064-terminal/server/terminal-ws.ts
+  s_67c308b9d6ad31::t_96cb1b8f17716d 533
+harness/agents/folder-preview-qa/prompt.md
+  s_400906c955949a::t_25c74e3d77b057 28-30
+apps/cli/src/commands/event-popper-client.ts
+  s_da4bb85142a2b5::t_664d555bb6e8b2 5,19,90,106-110,184-188
+docs/domains/_platform/auth/domain.md
+  s_5951390a457540::t_c88e56289b045d 75,89
+docs/domains/_platform/external-events/domain.md
+  s_db60ffd0febb56::t_42d1445ded2825 21,25,42,52,65-70,98,118
+docs/domains/terminal/domain.md
+  s_db60ffd0febb56::t_4be597d4c80841 62
+packages/shared/src/event-popper/index.ts
+  s_da4bb85142a2b5::t_ab0c76208c03d8 21-23,26,28-29,31
+test/integration/web/auth-bootstrap-code.envmatrix.integration.test.ts
+  s_5951390a457540::t_2b80417e06640b 334,341-342,351,418,420,479,481-482,488,493
+test/integration/web/event-popper-sinks.integration.test.ts
+  s_5951390a457540::t_9f20ea1fede9b9 106,111
+test/unit/web/api/event-popper/sink-auth.test.ts
+  s_5951390a457540::t_4854935a518d6a 100
+test/unit/web/lib/local-auth.test.ts
+  s_da4bb85142a2b5::t_550ebd01c5613a 88-89,94,163-165,170,177-206
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "197376a4999d891cf507748579261f33e8cc9a79",
+  "prompts": {},
+  "sessions": {
+    "s_400906c955949a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78ed4e8b-59e5-4278-a70e-2e49d39594e3",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_5951390a457540": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "085eb38c-d24d-485c-a326-ed7bbb482c5f",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_6f34923d46bf53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bccd12e4-4a44-4f35-99bd-f66eefaad71b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_805240d3d0aacd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8b48eaec-e9b5-4e2c-9eb2-e154f068d3dc",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_a7278f3b857a77": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "f53cd591-a6f5-43ba-9d5b-74377501ea1c",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_cef8250554428f": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7de6b1e6-cf93-4cb5-98be-9aaace757cc8",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_da4989fda66802": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "7e213a2f-2105-4939-ad18-6169385953a4",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_da4bb85142a2b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78503607-b6db-4a73-ab3b-ba7e79f6c152",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_db60ffd0febb56": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "55a7d894-3979-4358-92f7-a7b5d177f3b3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_e3460fd42f286c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "b007eb76-365c-4da0-8164-519fdee51c00",
+        "model": "unknown"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
