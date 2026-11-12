@@ -107,7 +107,14 @@ findings do not depend on load; timings do, and should be re-measured on a quiet
   - `apps/web/instrumentation.ts:118-154` writes `.chainglass/server.json` at start and removes it
     at shutdown, so a second server in the same folder takes over the file the CLI tools read.
   - `justfile:117-126` (`prod-serve`) kills whatever is listening on its port before starting.
-- **Change:** key `server.json` by port or mode (or refuse to overwrite a live server's entry), and
+  - **A build in the main tree breaks the running prod server (added 11:10).** Prod serves from
+    `apps/web/.next`, the same folder `just fft` and `just build` write to. The prod server started
+    at 09:46:33; `apps/web/.next/BUILD_ID` was rewritten at 10:00; from then on its pages asked for
+    script files that no longer matched (`/_next/static/chunks/0e2_ak1xk2n6v.js` returned 404,
+    others 500) and no page rendered. Every agent commit runs `just fft`, so this recurs on every
+    commit while prod is in use.
+- **Change:** serve prod from its own build folder (a separate `distDir` for the served build, or
+  a separate checkout) so agent builds cannot touch it; key `server.json` by port or mode (or refuse to overwrite a live server's entry), and
   make `prod-serve` fail rather than kill a live server unless told to. Add a documented pairing:
   prod on 3000 for use, dev on another port when changing chainglass. Time a rebuild and record it.
 - **Done when:** `just dev` on a second port and `just prod` on 3000 run together, both discoverable
@@ -131,8 +138,9 @@ findings do not depend on load; timings do, and should be re-measured on a quiet
 - **Evidence:** request counts while a page sat idle for 30 s: workspace page 6 server-action POSTs
   (dev); browser page 7 (prod); pij page 6 (dev) and 3 (prod). On load the browser page made 16
   server-action POSTs in dev and 2 in prod (dev doubles effects, which does not explain 16).
-- **Not done:** I could not name the actions; the probe that reads the action ids ran while the
-  machine was at load 180 and the pages did not hydrate in time.
+- **Not done:** I could not name the actions. The probe that reads the action ids ran at 10:01,
+  after the build on disk had been replaced under the running prod server (see item 4), so the
+  pages could not load their scripts. (An earlier draft blamed machine load; that was wrong.)
 - **Change:** first task is a trace (log the `next-action` id per POST and map it through
   `.next/server/server-reference-manifest.json`), then replace polling actions with the existing
   SSE channels or stop them when the tab is hidden.
