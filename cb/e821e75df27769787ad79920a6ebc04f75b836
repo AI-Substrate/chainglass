@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-home-cache-blockers-and-env-source.dd.json
+  s_67c308b9d6ad31::t_bde18b7a1cf5c6 1-27
+.harness/government/community/roles/reviewer/memory/2026-11-12-home-cache-blockers-and-env-source.dd.md
+  s_67c308b9d6ad31::t_b12a7facc69e41 1-49
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_67c308b9d6ad31::t_053997b7ae6494 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "cbe821e75df27769787ad79920a6ebc04f75b836",
+  "prompts": {},
+  "sessions": {
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
