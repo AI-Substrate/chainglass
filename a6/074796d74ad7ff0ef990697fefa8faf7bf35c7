@@ -1,0 +1,23 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-correction-nonexistent-tmux-tmpdir.dd.json
+  s_1f2c87f2c17dab::t_584d19a4a68f3c 1-26
+.harness/government/community/roles/reviewer/memory/2026-11-12-correction-nonexistent-tmux-tmpdir.dd.md
+  s_1f2c87f2c17dab::t_25946da7117768 1-36
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_1f2c87f2c17dab::t_53ad293e783ffd 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a6074796d74ad7ff0ef990697fefa8faf7bf35c7",
+  "prompts": {},
+  "sessions": {
+    "s_1f2c87f2c17dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8a614d4-b774-43d9-bc7e-06bc6821c9d4",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
