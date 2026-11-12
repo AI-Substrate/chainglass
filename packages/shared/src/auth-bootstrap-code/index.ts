@@ -18,6 +18,7 @@ export type { BootstrapCodeFile, EnsureResult } from './types.js';
 export {
   BOOTSTRAP_CODE_PATTERN,
   BOOTSTRAP_COOKIE_NAME,
+  BOOTSTRAP_COOKIE_NAME_SECURE,
   BOOTSTRAP_CODE_FILE_PATH_REL,
   BootstrapCodeFileSchema,
 } from './types.js';
@@ -27,7 +28,7 @@ export {
   writeBootstrapCode,
   ensureBootstrapCode,
 } from './persistence.js';
-export { buildCookieValue, verifyCookieValue } from './cookie.js';
+export { buildCookieValue, readBootstrapCookie, verifyCookieValue } from './cookie.js';
 export { buildAssetToken, verifyAssetToken } from './asset-token.js';
 export { activeSigningSecret } from './signing-key.js';
 export { findWorkspaceRoot } from './workspace-root.js';

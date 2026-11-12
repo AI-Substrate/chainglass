@@ -7,6 +7,8 @@
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
+import { BOOTSTRAP_COOKIE_NAME, BOOTSTRAP_COOKIE_NAME_SECURE } from './types.js';
+
 /** Compute the cookie value: `base64url(HMAC-SHA256(key, code))`. */
 export function buildCookieValue(code: string, key: Buffer): string {
   return createHmac('sha256', key).update(code, 'utf-8').digest('base64url');
@@ -26,4 +28,22 @@ export function verifyCookieValue(value: string | undefined, code: string, key: 
   const a = Buffer.from(value, 'utf-8');
   const b = Buffer.from(expected, 'utf-8');
   return timingSafeEqual(a, b);
+}
+
+/**
+ * The bootstrap cookie value to check from a request's cookies. It is set as
+ * `__Secure-chainglass-bootstrap` over HTTPS and `chainglass-bootstrap` over
+ * HTTP, and a browser that used both sends both over HTTPS: returns whichever
+ * verifies, else the first present (so callers can tell "present but stale"
+ * from "absent"), else `undefined`.
+ */
+export function readBootstrapCookie(
+  cookies: { get(name: string): { value: string } | undefined },
+  code: string,
+  key: Buffer
+): string | undefined {
+  const values = [BOOTSTRAP_COOKIE_NAME_SECURE, BOOTSTRAP_COOKIE_NAME]
+    .map((name) => cookies.get(name)?.value)
+    .filter((value): value is string => value !== undefined && value.length > 0);
+  return values.find((value) => verifyCookieValue(value, code, key)) ?? values[0];
 }

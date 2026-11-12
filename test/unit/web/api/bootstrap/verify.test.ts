@@ -9,6 +9,7 @@
 
 import {
   BOOTSTRAP_COOKIE_NAME,
+  BOOTSTRAP_COOKIE_NAME_SECURE,
   _resetSigningSecretCacheForTests,
   ensureBootstrapCode,
 } from '@chainglass/shared/auth-bootstrap-code';
@@ -233,17 +234,44 @@ describe('POST /api/bootstrap/verify', () => {
     expect((await POST(unstamped('198.51.100.99'))).status).toBe(429);
   });
 
-  // (10) production-only Secure cookie attribute (F002)
-  it('200 in production: Set-Cookie includes Secure', async () => {
+  // (10) Secure follows the request's protocol, never NODE_ENV (B4: prod over http://<LAN IP>)
+  it('200 over plain http in production: Set-Cookie has no Secure (the browser would drop it)', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     try {
-      const res = await POST(reqWithBody({ code: activeCode }));
+      const res = await POST(reqWithBody({ code: activeCode }, '192.168.1.70'));
       expect(res.status).toBe(200);
       const setCookie = (res.headers.get('set-cookie') ?? '').toLowerCase();
-      expect(setCookie).toContain('secure');
+      expect(setCookie).toContain(`${BOOTSTRAP_COOKIE_NAME}=`);
+      expect(setCookie).not.toContain('secure');
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it('200 over https (behind the TLS front): the cookie is __Secure-chainglass-bootstrap with Secure', async () => {
+    const res = await POST(
+      new NextRequest(URL, {
+        method: 'POST',
+        body: JSON.stringify({ code: activeCode }),
+        headers: {
+          'content-type': 'application/json',
+          ..._peerHeaderForTests('127.0.0.1', '192.168.1.70', 'https'),
+        },
+      })
+    );
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    // A separate name, so a Secure cookie never shadows the plain-HTTP one on the same host.
+    expect(setCookie.startsWith(`${BOOTSTRAP_COOKIE_NAME_SECURE}=`)).toBe(true);
+    expect(setCookie.toLowerCase()).toContain('; secure');
+  });
+
+  it('200: a client-sent X-Forwarded-Proto: https does not make the cookie Secure', async () => {
+    const res = await POST(
+      reqWithBody({ code: activeCode }, '192.168.1.70', { 'x-forwarded-proto': 'https' })
+    );
+    expect(res.status).toBe(200);
+    expect((res.headers.get('set-cookie') ?? '').toLowerCase()).not.toContain('secure');
   });
 
   // (9) 503 missing bootstrap file

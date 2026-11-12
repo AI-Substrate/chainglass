@@ -2,7 +2,8 @@
  * Plan 084 Phase 3 — `POST /api/bootstrap/verify` route.
  *
  * Verifies a user-submitted bootstrap code against the active code on disk
- * and, on success, sets the `chainglass-bootstrap` HttpOnly session cookie.
+ * and, on success, sets the bootstrap HttpOnly session cookie (`chainglass-bootstrap` over HTTP,
+ * `__Secure-chainglass-bootstrap` over HTTPS).
  *
  * Status codes (locked contract for Phase 6 popup):
  *   200 → `{ ok: true }` + Set-Cookie
@@ -12,7 +13,8 @@
  *   503 → `{ error: 'unavailable' }` (file missing / unreadable)
  *
  * Cookie attributes:
- *   HttpOnly + SameSite=Lax + Path=/ + (Secure when NODE_ENV=production) +
+ *   HttpOnly + SameSite=Lax + Path=/ + (Secure, and the `__Secure-` name, when the request came
+ *   over HTTPS) +
  *   Max-Age=2592000 (30 days). iOS Safari / Edge aggressively evict
  *   session cookies when tabs are backgrounded; mobile users were being
  *   re-prompted next-day. Server-side rotation still invalidates the
@@ -32,6 +34,7 @@ import { timingSafeEqual } from 'node:crypto';
 import {
   BOOTSTRAP_CODE_PATTERN,
   BOOTSTRAP_COOKIE_NAME,
+  BOOTSTRAP_COOKIE_NAME_SECURE,
   buildCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { type NextRequest, NextResponse } from 'next/server';
@@ -81,16 +84,23 @@ function checkRateLimit(ip: string, now: number): RateCheckResult {
 
 const COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
-function buildSetCookie(value: string): string {
-  const isProd = process.env.NODE_ENV === 'production';
+/**
+ * `Secure` follows the request's real protocol (`requestClient().secure`: the socket's own, or
+ * the TLS front's https when the request proves it came through the front), never NODE_ENV: a
+ * Secure cookie set over plain http is dropped by the browser, so prod on `http://<LAN IP>` could
+ * never sign in. Over HTTPS the cookie is `__Secure-chainglass-bootstrap`, a different name, so
+ * it never shadows the plain-HTTP one: a browser may not set a cookie over http whose name and
+ * host match a Secure one (ports don't count), which would break http sign-in on that host.
+ */
+function buildSetCookie(value: string, secure: boolean): string {
   const parts = [
-    `${BOOTSTRAP_COOKIE_NAME}=${value}`,
+    `${secure ? BOOTSTRAP_COOKIE_NAME_SECURE : BOOTSTRAP_COOKIE_NAME}=${value}`,
     'HttpOnly',
     'SameSite=Lax',
     'Path=/',
     `Max-Age=${COOKIE_MAX_AGE_SECONDS}`,
   ];
-  if (isProd) parts.push('Secure');
+  if (secure) parts.push('Secure');
   return parts.join('; ');
 }
 
@@ -104,7 +114,8 @@ function jsonError(
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Rate-limit key: the stamped client. Unstamped requests all share one bucket (fail closed).
-  const ip = requestClient(request.headers)?.address ?? 'unstamped';
+  const client = requestClient(request.headers);
+  const ip = client?.address ?? 'unstamped';
   const now = Date.now();
 
   // Rate limit FIRST so a flood of bad bodies doesn't burn through file IO.
@@ -156,7 +167,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const cookieValue = buildCookieValue(codeAndKey.code, codeAndKey.key);
   return NextResponse.json(
     { ok: true },
-    { status: 200, headers: { 'Set-Cookie': buildSetCookie(cookieValue) } }
+    {
+      status: 200,
+      headers: { 'Set-Cookie': buildSetCookie(cookieValue, client?.secure === true) },
+    }
   );
 }
 

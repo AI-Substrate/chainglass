@@ -27,8 +27,8 @@ import {
   TERMINAL_JWT_ISSUER,
 } from '@/features/064-terminal/server/terminal-auth';
 import {
-  BOOTSTRAP_COOKIE_NAME,
   findWorkspaceRoot,
+  readBootstrapCookie,
   verifyCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { SignJWT } from 'jose';
@@ -52,13 +52,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // gate (Plan 084 Phase 3). The proxy already gates this route with the
   // cookie, but we re-check in-route so a misconfigured proxy bypass cannot
   // grant terminal access.
-  const cookieValue = req.cookies.get(BOOTSTRAP_COOKIE_NAME)?.value;
   let codeAndKey: { code: string; key: Buffer };
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {
     return NextResponse.json({ error: 'bootstrap-unavailable' }, { status: 503 });
   }
+  const cookieValue = readBootstrapCookie(req.cookies, codeAndKey.code, codeAndKey.key);
   if (!verifyCookieValue(cookieValue, codeAndKey.code, codeAndKey.key)) {
     return NextResponse.json({ error: 'bootstrap-cookie-required' }, { status: 401 });
   }

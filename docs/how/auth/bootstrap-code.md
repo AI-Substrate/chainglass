@@ -283,12 +283,17 @@ files, issue reports, or screenshots.
 
 ### 8.3 — Threat model
 
-- **Online guessing**: 60 bits of entropy + a leaky-bucket rate limit per TCP
-  peer (5 attempts / 60s on `/api/bootstrap/verify`, keyed on the socket
-  address, not on X-Forwarded-For) makes online guessing infeasible at any
+- **Online guessing**: 60 bits of entropy + a leaky-bucket rate limit per client
+  (5 attempts / 60s on `/api/bootstrap/verify`, keyed on the socket address, or
+  behind the HTTPS front on the front's client address, never on a
+  client-sent X-Forwarded-For) makes online guessing infeasible at any
   reasonable rate.
-- **Cookie theft**: HttpOnly + `SameSite=Lax` + `Secure` (in prod) blocks JS
-  read and mitigates CSRF.
+- **Cookie theft**: HttpOnly + `SameSite=Lax` blocks JS read and mitigates
+  CSRF. Over HTTPS (the HTTPS front, `docs/how/dev/https.md`) the cookie is
+  `__Secure-chainglass-bootstrap` with `Secure`; over plain HTTP it is
+  `chainglass-bootstrap` without it, so `http://<LAN IP>` sign-in still works
+  (the separate name keeps an HTTPS sign-in from blocking it). On plain HTTP the
+  cookie crosses the LAN unencrypted — use HTTPS off this machine.
 - **CSWSH on terminal WS**: defended by the `Origin` allowlist in
   `terminal-ws.ts` (defaults: localhost, 127.0.0.1, every non-internal IPv4
   interface; opt-in for IPv6 / custom origins via `TERMINAL_WS_ALLOWED_ORIGINS`).

@@ -47,8 +47,16 @@ export interface EnsureResult {
 export const BOOTSTRAP_CODE_PATTERN =
   /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
 
-/** Name of the HttpOnly cookie that proves bootstrap-code possession. */
+/** Name of the HttpOnly cookie that proves bootstrap-code possession, as set over plain HTTP. */
 export const BOOTSTRAP_COOKIE_NAME = 'chainglass-bootstrap';
+
+/**
+ * The same cookie as set over HTTPS. Browsers ignore the port for cookies, and an http page may
+ * not set a cookie that would shadow a `Secure` one of the same name: with one name, signing in at
+ * https://host:3030 silently broke signing in at http://host:3000 in that browser. The `__Secure-`
+ * prefix also makes the browser refuse the cookie without `Secure`.
+ */
+export const BOOTSTRAP_COOKIE_NAME_SECURE = '__Secure-chainglass-bootstrap';
 
 /** Path relative to `cwd` where the bootstrap code lives on disk. */
 export const BOOTSTRAP_CODE_FILE_PATH_REL = '.chainglass/bootstrap-code.json';

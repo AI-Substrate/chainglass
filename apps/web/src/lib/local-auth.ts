@@ -27,8 +27,8 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import {
-  BOOTSTRAP_COOKIE_NAME,
   findWorkspaceRoot,
+  readBootstrapCookie,
   verifyCookieValue,
 } from '@chainglass/shared/auth-bootstrap-code';
 import { currentServerPort, readServerInfo } from '@chainglass/shared/event-popper';
@@ -87,7 +87,7 @@ export async function requireLocalAuth(req: NextRequest): Promise<LocalAuthResul
     return { ok: false, reason: 'bootstrap-unavailable' };
   }
 
-  const cookieValue = req.cookies.get(BOOTSTRAP_COOKIE_NAME)?.value;
+  const cookieValue = readBootstrapCookie(req.cookies, codeAndKey.code, codeAndKey.key);
   if (cookieValue !== undefined && cookieValue.length > 0) {
     if (verifyCookieValue(cookieValue, codeAndKey.code, codeAndKey.key)) {
       return { ok: true, via: 'cookie' };

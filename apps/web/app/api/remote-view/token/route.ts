@@ -29,7 +29,7 @@ import {
   REMOTE_VIEW_JWT_AUDIENCE,
   REMOTE_VIEW_JWT_ISSUER,
 } from '@/features/088-remote-view/server/remote-view-auth';
-import { BOOTSTRAP_COOKIE_NAME, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
+import { readBootstrapCookie, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
 import { SignJWT } from 'jose';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -49,13 +49,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // (b) Bootstrap-cookie pre-check — defence-in-depth on top of the proxy gate.
-  const cookieValue = req.cookies.get(BOOTSTRAP_COOKIE_NAME)?.value;
   let codeAndKey: { code: string; key: Buffer };
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {
     return NextResponse.json({ error: 'bootstrap-unavailable' }, { status: 503 });
   }
+  const cookieValue = readBootstrapCookie(req.cookies, codeAndKey.code, codeAndKey.key);
   if (!verifyCookieValue(cookieValue, codeAndKey.code, codeAndKey.key)) {
     return NextResponse.json({ error: 'bootstrap-cookie-required' }, { status: 401 });
   }

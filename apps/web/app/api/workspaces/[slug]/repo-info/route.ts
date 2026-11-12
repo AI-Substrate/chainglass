@@ -30,7 +30,7 @@ import {
 import { getBootstrapCodeAndKey } from '@/lib/bootstrap-code';
 import { getContainer } from '@/lib/bootstrap-singleton';
 import { WORKSPACE_DI_TOKENS } from '@chainglass/shared';
-import { BOOTSTRAP_COOKIE_NAME, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
+import { readBootstrapCookie, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
 import type { IWorkspaceService } from '@chainglass/workflow';
 import { type NextRequest, NextResponse } from 'next/server';
 
@@ -48,13 +48,13 @@ export async function GET(req: NextRequest, { params }: RouteParams): Promise<Re
   }
 
   // (b) Independent bootstrap-cookie check — defence-in-depth (finding 02).
-  const cookieValue = req.cookies.get(BOOTSTRAP_COOKIE_NAME)?.value;
   let codeAndKey: { code: string; key: Buffer };
   try {
     codeAndKey = await getBootstrapCodeAndKey();
   } catch {
     return NextResponse.json({ error: 'bootstrap-unavailable' }, { status: 503 });
   }
+  const cookieValue = readBootstrapCookie(req.cookies, codeAndKey.code, codeAndKey.key);
   if (!verifyCookieValue(cookieValue, codeAndKey.code, codeAndKey.key)) {
     return NextResponse.json({ error: 'bootstrap-cookie-required' }, { status: 401 });
   }

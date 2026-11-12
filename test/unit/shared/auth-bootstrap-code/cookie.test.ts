@@ -18,7 +18,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { buildCookieValue, verifyCookieValue } from '@chainglass/shared/auth-bootstrap-code';
+import {
+  BOOTSTRAP_COOKIE_NAME,
+  BOOTSTRAP_COOKIE_NAME_SECURE,
+  buildCookieValue,
+  readBootstrapCookie,
+  verifyCookieValue,
+} from '@chainglass/shared/auth-bootstrap-code';
 
 const KEY_A = Buffer.from('test-key-aaaaaaaaaaaaaaaaaaaaaaa', 'utf-8');
 const KEY_B = Buffer.from('test-key-bbbbbbbbbbbbbbbbbbbbbbb', 'utf-8');
@@ -79,5 +85,34 @@ describe('verifyCookieValue', () => {
     const value = buildCookieValue(CODE, KEY_A);
     expect(verifyCookieValue(`${value}-extra`, CODE, KEY_A)).toBe(false);
     expect(verifyCookieValue(value.slice(0, 5), CODE, KEY_A)).toBe(false);
+  });
+});
+
+describe('readBootstrapCookie (HTTP and HTTPS names)', () => {
+  const jar = (entries: Record<string, string>) => ({
+    get: (name: string) => (name in entries ? { value: entries[name] } : undefined),
+  });
+  const valid = buildCookieValue(CODE, KEY_A);
+  const stale = buildCookieValue(ROTATED_CODE, KEY_A);
+
+  it('accepts the cookie under either name', () => {
+    expect(readBootstrapCookie(jar({ [BOOTSTRAP_COOKIE_NAME]: valid }), CODE, KEY_A)).toBe(valid);
+    expect(readBootstrapCookie(jar({ [BOOTSTRAP_COOKIE_NAME_SECURE]: valid }), CODE, KEY_A)).toBe(
+      valid
+    );
+  });
+
+  it('a browser that used both protocols is verified when either one is current', () => {
+    // Over HTTPS the browser sends both: the plain one may be from before a code rotation.
+    const both = (plain: string, secure: string) =>
+      jar({ [BOOTSTRAP_COOKIE_NAME]: plain, [BOOTSTRAP_COOKIE_NAME_SECURE]: secure });
+    expect(readBootstrapCookie(both(stale, valid), CODE, KEY_A)).toBe(valid);
+    expect(readBootstrapCookie(both(valid, stale), CODE, KEY_A)).toBe(valid);
+  });
+
+  it('returns a stale cookie as-is (present but invalid) and undefined when there is none', () => {
+    expect(readBootstrapCookie(jar({ [BOOTSTRAP_COOKIE_NAME]: stale }), CODE, KEY_A)).toBe(stale);
+    expect(readBootstrapCookie(jar({ [BOOTSTRAP_COOKIE_NAME]: '' }), CODE, KEY_A)).toBeUndefined();
+    expect(readBootstrapCookie(jar({}), CODE, KEY_A)).toBeUndefined();
   });
 });
