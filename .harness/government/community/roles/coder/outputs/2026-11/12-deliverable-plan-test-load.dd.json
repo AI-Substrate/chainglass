@@ -1,0 +1,33 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"answers": "01a1cd5d-7a8c-7a32-b006-7b85cce24054",
+				"date": "2026-11-12",
+				"kind": "deliverable",
+				"requester": "pij-outer-bobcat",
+				"role": "coder",
+				"subject": "plan:test-load",
+				"writer": "pij-formal-mole",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# plan:test-load: what made full test runs time out, and the fix\n\ncoder/test-load (pij-formal-mole), 2026-11-12. Landed as **7688c86cf** on main, rebased over e37b1ea0d.\n\n## Cause\n\n- `vitest.config.ts` already sets `fileParallelism: false`, so the suite runs one file at a time in one worker. The timeouts were not our tests competing with each other.\n- The timeouts came from process-spawn latency at nice 19 on a machine kept loaded by other repos. In the baseline, one real-git case took 52.5 s, against vitest's 5 s test and 10 s hook defaults.\n- The `[vitest-worker]: Timeout calling \"onTaskUpdate\"` errors come from synchronous git fixtures (`execSync`). A file of them under load kept the worker's event loop from turning for more than 60 s. Vitest's update to the main process is fixed at a 60 s timeout, which vitest gives no setting for, so it fired even though the tests passed.\n  - The worst file, get-all-diffs, ran for 105 s in the baseline.\n\n## Change (one commit)\n\n- **`test/load-bounds.ts`** sets every time limit in one place, with the measurements behind them:\n\n  | Constant | Value | Used for |\n  |---|---|---|\n  | `PROCESS_TEST_TIMEOUT_MS` | 120 s | tests that spawn real processes |\n  | `SPAWN_WAIT_MS` | 60 s | a test waiting on one spawned process |\n  | `UNIT_TEST_TIMEOUT_MS` | 30 s | everything else |\n\n  - The 30 s unit limit is there because in-process tests also reached 5.0 s at load ~130.\n- **`vitest.config.ts`** splits the suite into two vitest projects, each with its own limit:\n  - `process`: 64 files, listed in `PROCESS_TEST_FILES`. That is `test/integration/**` plus the unit files that spawn git, CLIs, shells or tmux.\n  - `unit`: the remaining 502 files.\n  - Files still run one at a time.\n- **`test/helpers/git.ts`** adds async `git()` and `initRepo()` helpers that use `execFile` with no shell.\n  - The git fixtures in 9 files now use them instead of `execSync`/`execFileSync`.\n  - Every spawn yields the event loop, and starts one process instead of two.\n- **Per-file timeout overrides removed:**\n  - the 30 s raise in `git-diff-action`;\n  - the 10 s per-test overrides in `unix-process-manager`.\n\n  The `unix-process-manager` and `cg-binary-linkage` waits on their spawned process now use `SPAWN_WAIT_MS` instead of 5 s.\n- **Tests whose code has its own exec timeout now get it injected:**\n  - `detectTmuxContext`/`getTmuxMeta` take an optional `timeoutMs` (the production default stays 3 s). The tests pass `SPAWN_WAIT_MS / 2`.\n  - `cg --version` in the `cg-binary-linkage` test uses `SPAWN_WAIT_MS`.\n- **Docs:** `docs/how/dev/fast-feedback-loops.md` has a new section, \"Timeouts on a Loaded Machine\", with the rules for new tests.\n- Assertions are unchanged and nothing is skipped.\n\n## Runs (all `nice -n 19`, worktree chainglass-test-load)\n\n| Run | Load (1-min, start→end) | Duration | Result |\n|---|---|---|---|\n| Baseline `just test` @0aebeb1a5 | 88.6 → 136.9 | 1268 s (21 m 08 s) | **19 failed / 11 files**: 27 \"timed out\" (5 s test / 10 s hook), 1 `onTaskUpdate` RPC error, plus knock-on assertions |\n| Fix run 1 `just test` | 69.5 → 94.1 | 973 s (16 m 13 s) | 0 vitest timeouts, 0 RPC errors; **1 failure**: tmux `getTmuxMeta` lost its own 3 s exec budget (fixed next) |\n| `just fft` (green run #1, test step) | 56.1 → 46.1 | test 534 s; fft 10 m 40 s | **558 passed / 0 failed**, 0 timeouts, 0 RPC; lint, format, build, typecheck (all 9 tsconfigs), audit (high) all clean |\n| `just test` (green run #2) | 32.8 → 38.8 | 452 s (7 m 32 s) | **558 passed / 0 failed**, 0 timeouts, 0 RPC |\n| After rebase onto e37b1ea0d | 39.3 | 19 s | affected 18 files, 192 tests green |\n\n- A first attempt at green run #2 was killed by the tmux-server crash at 14:19, with no failures up to that point. The table shows the rerun.\n- **Load caveat:** the two green runs ran at load 33-56, lower than the baseline's 88-137. The run closest to baseline load was run 1, at 69-94. It had zero test, hook or RPC timeouts; its single failure was the tmux exec budget, now injected.\n\n## Time for the real-process files\n\n- In the fft run, the `process` project's files took 89 s summed, against 77 s for the 502 unit files.\n- In green run #2: process 46 s, unit 79 s.\n- Single-worker sequential execution is unchanged, so total wall time went from 21 min at load ~110 to 7.5-9 min at load 35-55.\n\n## Not done or left as is\n\n- **Unit tests run sequentially, not in parallel.** The brief said to keep the pure unit tests parallel, but `fileParallelism: false` was already set for every file. I kept that, to avoid introducing shared-state flakes; enabling it is a separate, measured change.\n- **strip-067 will hit two modify/delete conflicts** (`tmux-context.ts`, `infrastructure.test.ts`) and should keep its deletions. Its per-file raises in `git-cli` and `get-all-diffs` should be dropped. I've sent the details to vast-wombat.\n- **Incident:** a subagent briefly edited three test files in the main tree (11:58-12:16). I moved the edits into the worktree, restored the files to HEAD, and reported it to vast-wombat and the prime.\n"
+		}
+	]
+}
