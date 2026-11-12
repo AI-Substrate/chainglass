@@ -82,6 +82,16 @@
 					"machine": "ops.osk.lan",
 					"seat": "pij-formal-mole",
 					"why": "Wave queue blocked by real-process test timeouts under load"
+				},
+				{
+					"assigned_by": "pij-outer-bobcat",
+					"from": "2026-11-12T01:43:57.079Z",
+					"harness": "omp",
+					"harness_session": "01a1cd46-cb8e-7586-9988-37bc29ccc9ee",
+					"instance_key": "nav-progress",
+					"machine": "ops.osk.lan",
+					"seat": "pij-ambitious-warbler",
+					"why": "Jordan: clicks look frozen; global navigation-pending indicator"
 				}
 			]
 		}

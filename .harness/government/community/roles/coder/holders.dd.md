@@ -25,3 +25,4 @@
 | — | pij-formal-mole | omp | 01a1cd15-878a-743e-847a-220c6b2c5e69 | ops.osk.lan | trace-idle | 2026-11-12T00:08:33.983Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/trace-idle.md | — |
 | — | pij-ambitious-warbler | omp | 01a1cd46-cb8e-7586-9988-37bc29ccc9ee | ops.osk.lan | ctx-max | 2026-11-12T01:02:17.364Z | — | pij-outer-bobcat | — | Jordan: context bar shows the fullest agent in a multi-pane window | — |
 | — | pij-formal-mole | omp | 01a1cd15-878a-743e-847a-220c6b2c5e69 | ops.osk.lan | test-load | 2026-11-12T01:26:53.043Z | — | pij-outer-bobcat | — | Wave queue blocked by real-process test timeouts under load | — |
+| — | pij-ambitious-warbler | omp | 01a1cd46-cb8e-7586-9988-37bc29ccc9ee | ops.osk.lan | nav-progress | 2026-11-12T01:43:57.079Z | — | pij-outer-bobcat | — | Jordan: clicks look frozen; global navigation-pending indicator | — |
