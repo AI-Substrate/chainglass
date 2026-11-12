@@ -1,0 +1,18 @@
+.harness/government/community/roles/coder/memory/2026-11-12-nav-wave-1-coder-tmux-safe-proofs.dd.json
+  h_9e71e8b09f7cf2 1-27
+.harness/government/community/roles/coder/memory/2026-11-12-nav-wave-1-coder-tmux-safe-proofs.dd.md
+  h_9e71e8b09f7cf2 1-32
+.harness/government/community/roles/coder/memory/INDEX.md
+  h_9e71e8b09f7cf2 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7356e6a9925b096bda05be3a944fa514a6907248",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
