@@ -58,18 +58,20 @@ export function contextFill(context: SeatContext): number {
 }
 
 /**
- * The fullest of a window's seats, by fill. Seats without context are skipped; none reporting
- * gives `null`. A tie keeps the earlier seat.
+ * The fullest of a window's seats, by used over window, unclamped: a seat reporting more than
+ * its window outranks one exactly full, though both draw a full bar. Seats without context are
+ * skipped; none reporting gives `null`. A tie keeps the earlier seat.
  */
 export function fullestContext(
   seats: ReadonlyArray<{ id: string; context: SeatContext | null }>
 ): WindowContext | null {
-  let fullest: { id: string; context: SeatContext } | null = null;
+  let fullest: { id: string; context: SeatContext; ratio: number } | null = null;
   let reporting = 0;
   for (const { id, context } of seats) {
     if (!context) continue;
     reporting++;
-    if (!fullest || contextFill(context) > contextFill(fullest.context)) fullest = { id, context };
+    const ratio = context.usedTokens / context.windowTokens;
+    if (!fullest || ratio > fullest.ratio) fullest = { id, context, ratio };
   }
   return fullest && { ...fullest.context, seatId: fullest.id, seats: reporting };
 }
