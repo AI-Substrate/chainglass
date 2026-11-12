@@ -1,0 +1,67 @@
+apps/web/app/api/bootstrap/verify/route.ts
+  s_49cdd9a4b8d4c0::t_df0876c00e95b5 21-25,40,106-107
+apps/web/src/lib/localhost-guard.ts
+  s_49cdd9a4b8d4c0::t_9573614dcb0037 4,20-22,27,32
+apps/web/src/lib/socket-peer.ts
+  s_49cdd9a4b8d4c0::t_e17177d13b8740 23-31,38,41-49,55-56,62-71,73-86,88,94-101,106,109,114,117-118,122-123,126-127,130-157,160
+apps/web/src/lib/tls-front.ts
+  s_49cdd9a4b8d4c0::t_b8dc684b57bd02 22-24,30,40,55-56,81-82,100-101,105,127,188,215-216,229,313
+docs/domains/_platform/auth/domain.md
+  s_a0605d79762c49::t_7d403815ddef28 234
+docs/domains/_platform/external-events/domain.md
+  s_13e44467d7e910::t_f96d8721199ab5 20,35,58,60
+docs/how/dev/https.md
+  s_a0605d79762c49::t_0906aca5a8a92e 76-89
+test/unit/web/api/bootstrap/verify.test.ts
+  s_111bcb598c8684::t_860eba5e578298 202-221
+test/unit/web/lib/tls-front.test.ts
+  s_67c308b9d6ad31::t_47856cfa913b4b 9-12,23-24,26-34,121-122,131,426-582
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "100f5b2615b185d97a484d420a4f4ac1c79252c3",
+  "prompts": {},
+  "sessions": {
+    "s_111bcb598c8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c412afea-4b9f-45d5-9797-c115656f25e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_13e44467d7e910": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "825608fb-1d35-4eb0-b17e-cbb9a9a9fc7f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_49cdd9a4b8d4c0": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "41d166d0-ef0b-4dd7-836d-346de9db839f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_a0605d79762c49": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8a059421-ccd2-4497-8598-8d6a11ba4bee",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
