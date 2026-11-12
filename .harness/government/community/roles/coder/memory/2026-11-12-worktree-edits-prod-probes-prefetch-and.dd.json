@@ -1,0 +1,26 @@
+{
+	"dd": {
+		"schema": "pij/memory"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"hook": "before probing prod or editing in a wave worktree",
+				"tags": [
+					"worktree",
+					"prod-probe",
+					"prefetch",
+					"git"
+				],
+				"title": "Worktree edits, prod probes, prefetch and git-launch tracing"
+			}
+		},
+		{
+			"name": "body",
+			"value": "Lessons from coder/home-prefetch (nav wave 1, 2026-11-12):\n\n- Worktree work in an omp seat: the edit/read tools resolve relative paths against the main tree (/Users/jordanknight/substrate/chainglass), not your worktree. Use absolute worktree paths for every edit, or you silently edit Jordan's hot-reloaded main tree.\n- Probing a prod build in a browser needs the bootstrap cookie: POST /api/bootstrap/verify {code} with the code from <worktree>/.chainglass/bootstrap-code.json, then pass the Set-Cookie pair to curl and the Playwright context. Without it every page is the gate popup (looks like \"0 prefetches\").\n- Next 16.4.2 prefetch: each prefetched link = 2 requests (/_tree, then metadata). Visible prefetchable links are all re-prefetched on router-tree change or a revalidating server action, so data-scaled link lists multiply; prefetch={false} on them.\n- Counting git launches per server without root: put a logging `git` wrapper first in PATH and a NODE_OPTIONS --require preload that wraps child_process.spawn (syncBuiltinESMExports) to log stacks; start spare-port servers with TMUX unset and a private TMUX_TMPDIR.\n- Idle git launch source was /api/worktree-activity (30 s poll per tab x all workspaces); GitWorktreeResolver now caches on git metadata stamps (web DI only).\n"
+		}
+	]
+}
