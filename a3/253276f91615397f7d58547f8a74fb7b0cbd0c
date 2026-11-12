@@ -1,0 +1,57 @@
+apps/web/.env.example
+  s_111bcb598c8684::t_3cc167898388dd 32-34,40-41
+apps/web/src/features/088-remote-view/server/daemon-manager.ts
+  s_13e44467d7e910::t_e141aedcb344f9 78-85,243-245
+apps/web/src/features/088-remote-view/server/remote-view-service.production.ts
+  s_7e7237f2882b24::t_469bdd51ed3299 69-70,88,105,178
+apps/web/src/lib/tls-front.ts
+  s_7e7237f2882b24::t_1bfff129460aaf 322-326,346
+docs/domains/remote-view/domain.md
+  s_13e44467d7e910::t_debdc91f34772e 89
+docs/how/dev/https.md
+  s_67c308b9d6ad31::t_33900a926b691f 117-123
+docs/how/remote-view.md
+  s_111bcb598c8684::t_50385dbeecfec9 149-152,194
+test/unit/web/features/088-remote-view/daemon-manager.test.ts
+  s_67c308b9d6ad31::t_b4b8b198e9cba8 97-98,167,421-435
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a3253276f91615397f7d58547f8a74fb7b0cbd0c",
+  "prompts": {},
+  "sessions": {
+    "s_111bcb598c8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c412afea-4b9f-45d5-9797-c115656f25e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_13e44467d7e910": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "825608fb-1d35-4eb0-b17e-cbb9a9a9fc7f",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_7e7237f2882b24": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "a8acdae0-6ebc-43d4-9fbb-9492c710bc0c",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
