@@ -21,20 +21,29 @@ install:
 # `--filter=@chainglass/web` runs web's dev server plus builds of only the packages it imports
 # (shared, workflow, positional-graph). Unfiltered, turbo also scheduled cli#dev, whose ^build pulls
 # in a full `next build` of web on every start (rewriting apps/web/.next) for no dev benefit.
+# With HTTPS_PORT set (`just dev-https`), the TLS front runs too (docs/how/dev/https.md).
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     WS_PORT=$((NEXT_PORT + 1500))
     just _require-sidecar-env
+    NAMES=next,terminal COLORS=blue,green FRONT=()
+    if [ -n "${HTTPS_PORT:-}" ]; then
+      just _require-certs
+      NAMES=$NAMES,https COLORS=$COLORS,magenta FRONT=("pnpm tsx apps/web/src/lib/tls-front.ts")
+      # The front's ports are never taken over from another server (prod rules), even in dev.
+      just _claim-ports prod $HTTPS_PORT $((HTTPS_PORT + 1500))
+    fi
     just _claim-ports dev $NEXT_PORT $WS_PORT
     just _clear-stale-dev-cache
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
-      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+      pnpm concurrently --names "$NAMES" --prefix-colors "$COLORS" \
         "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT" \
-        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts" \
+        ${FRONT[@]+"${FRONT[@]}"}
 
 # The terminal sidecar loads apps/web/.env.local with `tsx --env-file`, which exits at once when
 # the file is missing — so a server would start without its terminal. Checked before any port is
@@ -120,21 +129,39 @@ dev-poll interval="1000":
 dev-terminal:
     PORT=${PORT:-3000} pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts
 
-# Start development server with HTTPS (enables clipboard API on remote devices)
+# HTTPS certificate for the TLS front (`just prod-https`, `just dev-https`; docs/how/dev/https.md).
+# mkcert signs apps/web/certificates/chainglass.pem (+ chainglass-key.pem, gitignored) for
+# localhost, 127.0.0.1, ::1, ops.osk.lan and every LAN IPv4 address of this machine (the same set
+# the terminal sidecar allows by default). CERT_NAMES="name ip" adds more. Rerun when the LAN
+# address changes. Other devices trust it once they install the root CA (`mkcert -CAROOT`).
+certs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v mkcert >/dev/null; then
+      echo "❌ mkcert not found. Install it: brew install mkcert && mkcert -install"
+      exit 1
+    fi
+    LAN=$(node -e 'for (const l of Object.values(require("os").networkInterfaces())) for (const i of l ?? []) if (i.family === "IPv4" && !i.internal) console.log(i.address)')
+    mkdir -p apps/web/certificates
+    mkcert -cert-file apps/web/certificates/chainglass.pem -key-file apps/web/certificates/chainglass-key.pem \
+      localhost 127.0.0.1 ::1 ops.osk.lan $LAN ${CERT_NAMES:-}
+    echo "Root CA for other devices: $(mkcert -CAROOT)/rootCA.pem (docs/how/dev/https.md)"
+
+# HTTPS beside plain HTTP, for dev: `just dev` plus the TLS front (docs/how/dev/https.md).
+# https://<name>:HTTPS_PORT (default PORT + 30) → Next on PORT; wss HTTPS_PORT + 1500 → the
+# terminal sidecar. Plain http://<host>:PORT keeps working. Needs `just certs` once per worktree.
 dev-https:
     #!/usr/bin/env bash
     set -euo pipefail
-    NEXT_PORT=${PORT:-3000}
-    WS_PORT=$((NEXT_PORT + 1500))
-    just _require-sidecar-env
-    just _claim-ports dev $NEXT_PORT $WS_PORT
-    just _clear-stale-dev-cache
-    cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
-    cd "$OLDPWD"
-    PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} TERMINAL_WS_CERT=apps/web/certificates/localhost.pem TERMINAL_WS_KEY=apps/web/certificates/localhost-key.pem \
-      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
-        "pnpm turbo dev --filter=@chainglass/web -- --port $NEXT_PORT --experimental-https" \
-        "pnpm tsx watch --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+    HTTPS_PORT=${HTTPS_PORT:-$(( ${PORT:-3000} + 30 ))} just dev
+
+# The TLS front's certificate (`just certs`). Checked before any port is claimed.
+_require-certs:
+    #!/usr/bin/env bash
+    if [ ! -f apps/web/certificates/chainglass.pem ] || [ ! -f apps/web/certificates/chainglass-key.pem ]; then
+      echo "❌ No HTTPS certificate (apps/web/certificates/chainglass.pem). Run: just certs"
+      exit 1
+    fi
 
 # Build all packages
 build:
@@ -155,12 +182,15 @@ build:
 # `KILL_EXISTING=1 just prod` — the old server keeps serving while the build runs; it is stopped
 # only to swap in the new copy and restart. Rebuild cost (2026-11-12, M-series Mac): turbo build
 # with nothing cached 31 s (load ~40), staging clone ~9 s, prod down ~3 s (kill → Ready, load ~76).
+# With HTTPS_PORT set (`just prod-https`), the TLS front runs too and its ports are checked as well.
 prod:
     #!/usr/bin/env bash
     set -euo pipefail
     NEXT_PORT=${PORT:-3000}
     just _require-sidecar-env
-    CLAIM_CHECK_ONLY=1 just _claim-ports prod $NEXT_PORT $((NEXT_PORT + 1500))
+    FRONT_PORTS=""
+    if [ -n "${HTTPS_PORT:-}" ]; then FRONT_PORTS="$HTTPS_PORT $((HTTPS_PORT + 1500))"; fi
+    CLAIM_CHECK_ONLY=1 just _claim-ports prod $NEXT_PORT $((NEXT_PORT + 1500)) $FRONT_PORTS
     just build
     # Stage a copy of the fresh build (no caches, dev output or standalone bundle); prod-serve
     # swaps it in once the ports are free. It sits beside .next, at the same depth, because the
@@ -194,16 +224,38 @@ prod-serve:
     cd apps/web && node -e "require('node-pty').spawn('/bin/echo',['ok'],{name:'x',cols:1,rows:1,cwd:'/tmp',env:{}})" 2>/dev/null || (echo "Error: node-pty can't spawn. Run: chmod +x apps/web/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper" && exit 1)
     cd "$OLDPWD"
     just _require-sidecar-env
-    just _claim-ports prod $NEXT_PORT $WS_PORT
+    NAMES=next,terminal COLORS=blue,green FRONT=() FRONT_PORTS=""
+    if [ -n "${HTTPS_PORT:-}" ]; then
+      just _require-certs
+      NAMES=$NAMES,https COLORS=$COLORS,magenta FRONT=("pnpm tsx apps/web/src/lib/tls-front.ts")
+      FRONT_PORTS="$HTTPS_PORT $((HTTPS_PORT + 1500))"
+    fi
+    just _claim-ports prod $NEXT_PORT $WS_PORT $FRONT_PORTS
     just _promote-prod-build $NEXT_PORT
     # `next start` serves the precompiled build (minified, no on-demand compile) from the
     # CHAINGLASS_DIST_DIR copy (apps/web/next.config.mjs). Next prints an "output: standalone"
     # advisory warning here; it's harmless (standalone output is only for `cg`/CLI packaging).
     # Terminal sidecar runs via tsx WITHOUT `watch` (no file-watching overhead in prod).
     PORT=$NEXT_PORT TERMINAL_WS_HOST=${TERMINAL_WS_HOST:-0.0.0.0} \
-      pnpm concurrently --names "next,terminal" --prefix-colors "blue,green" \
+      pnpm concurrently --names "$NAMES" --prefix-colors "$COLORS" \
         "cd apps/web && CHAINGLASS_DIST_DIR=$DIST pnpm exec next start --port $NEXT_PORT" \
-        "pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts"
+        "pnpm tsx --env-file=apps/web/.env.local apps/web/src/features/064-terminal/server/terminal-ws.ts" \
+        ${FRONT[@]+"${FRONT[@]}"}
+
+# HTTPS beside plain HTTP: `just prod` plus the TLS front (docs/how/dev/https.md).
+# https://<name>:HTTPS_PORT (default PORT + 30, so 3030 for 3000) → Next on PORT; wss
+# HTTPS_PORT + 1500 → the terminal sidecar; /remote-view-ws → streamd. Plain http://<host>:PORT
+# keeps working, sign-in included. Same build, no-kill and precheck rules as `just prod`, plus
+# the certificate (`just certs`). `prod-https-serve` relaunches without rebuilding.
+prod-https:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HTTPS_PORT=${HTTPS_PORT:-$(( ${PORT:-3000} + 30 ))} just prod
+
+prod-https-serve:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HTTPS_PORT=${HTTPS_PORT:-$(( ${PORT:-3000} + 30 ))} just prod-serve
 
 # Swap a finished staged build (apps/web/.next-prod-<port>.staged, with .complete) in as
 # apps/web/.next-prod-<port>. An unfinished stage is discarded and the current copy kept. The

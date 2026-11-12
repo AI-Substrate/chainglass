@@ -18,6 +18,7 @@ Localhost plumbing that lets external processes (CLI tools, agents, scripts, sid
 
 - Port discovery (`readServerInfo`, `discoverServerInfo`, `listServerInfo`, `writeServerInfo`, `removeServerInfo`, `currentServerPort`, `ServerInfo`)
 - Localhost-only API guard (`localhostGuard`, `isLocalhostRequest`) and the socket-peer stamp it trusts (`installPeerAddressStamp`, `socketPeerAddress`)
+- The TLS front for HTTPS mode (`startTlsFront`, `apps/web/src/lib/tls-front.ts`): forwards to the plain servers and owns the forwarded-header contract the guard relies on
 - Server boot hook in `instrumentation.ts` (installs the peer stamp; writes `.chainglass/servers/<port>.json`)
 
 ### Does NOT Own
@@ -33,6 +34,7 @@ Localhost plumbing that lets external processes (CLI tools, agents, scripts, sid
 | `readServerInfo` / `discoverServerInfo` / `writeServerInfo` | Per-port server entries for CLI ↔ server | Node.js `fs` |
 | `installPeerAddressStamp` / `socketPeerAddress` | Record each request's TCP peer, tagged with a per-process token, before Next sees it | Node.js `http`/`https` servers |
 | `localhostGuard` / `isLocalhostRequest` | Reject non-localhost API calls (stamped loopback peer only) | `socketPeerAddress`, Next.js `NextRequest` |
+| `startTlsFront` | HTTPS mode: TLS on the public port, forwarding to Next, the terminal sidecar (port + 1500) and streamd (`/remote-view-ws` upgrades); overwrites `X-Forwarded-For` with the client's socket address | Node.js `https`/`tls`/`net` |
 
 ## Concepts
 
@@ -77,7 +79,8 @@ packages/shared/src/event-popper/
 
 apps/web/src/lib/
   ├── localhost-guard.ts  # localhostGuard, isLocalhostRequest
-  └── socket-peer.ts      # installPeerAddressStamp, socketPeerAddress
+  ├── socket-peer.ts      # installPeerAddressStamp, socketPeerAddress
+  └── tls-front.ts        # startTlsFront (run by tsx from the HTTPS recipes)
 
 apps/web/
   └── instrumentation.ts  # installs the peer stamp; writeServerInfo on boot
@@ -92,3 +95,4 @@ apps/web/
 | nav speed item 4 | Server entries keyed by port (`.chainglass/servers/<port>.json`, with `mode`) so a prod and a dev server run from one checkout; `discoverServerInfo` + `CG_SERVER_PORT` for clients | 2026-11-12 |
 | Removal | Plan 067 question/alert UI removed: envelope schemas, `generateEventId`, tmux detection, the question SSE channel, the question/alert API routes and their proxy bypass deleted. Port discovery + localhost guard remain | 2026-11-12 |
 | Localhost guard hardening | `isLocalhostRequest` trusted the Host header and a loopback X-Forwarded-For, because Next 15+ never sets `NextRequest.ip`; a LAN client sending `Host: localhost` + `X-Forwarded-For: 127.0.0.1` passed as local. It now trusts only the socket peer recorded by `installPeerAddressStamp()` (run first in `register()`), tagged with a per-process token so client-sent or pre-stamp values fail closed | 2026-11-12 |
+| HTTPS mode | TLS front (`tls-front.ts`): https → Next, wss port + 1500 → terminal sidecar, `/remote-view-ws` upgrades → streamd; X-Forwarded-For overwritten with the client's socket address so the guard still refuses LAN clients behind it | 2026-11-12 |

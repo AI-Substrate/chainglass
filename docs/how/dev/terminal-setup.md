@@ -62,42 +62,32 @@ When tmux isn't installed, the sidecar falls back to a raw shell and sends a war
 
 This is a first-class use case — accessing the terminal from an iPad or other device on your local network.
 
-### Step 1: Generate HTTPS certs
+### Step 1: Generate the HTTPS certificate
 
 The clipboard API requires a secure context (HTTPS). Without it, the copy button shows a modal instead of writing to clipboard directly.
 
 ```bash
-# Install mkcert and set up local CA
-brew install mkcert
-mkcert -install
-
-# Generate certs for localhost AND your LAN IP
-cd apps/web
-mkdir -p certificates
-mkcert -key-file certificates/localhost-key.pem \
-       -cert-file certificates/localhost.pem \
-       localhost 127.0.0.1 ::1 192.168.1.32
+brew install mkcert && mkcert -install   # once per machine
+just certs                               # once per worktree; covers localhost and every LAN IP
 ```
 
-Replace `192.168.1.32` with your machine's actual LAN IP (`ifconfig | grep "inet "`).
+Rerun `just certs` when your LAN IP changes. Details, and trusting the CA on other devices: [https.md](./https.md).
 
 ### Step 2: Start with HTTPS
 
 ```bash
-PORT=3002 just dev-https
+just prod-https            # or, while changing chainglass: PORT=3010 just dev-https
 ```
 
-This starts:
-- Next.js with `--experimental-https` on `https://192.168.1.32:3002`
-- Terminal sidecar with WSS (TLS) using the same certs
+This starts the usual server and terminal sidecar (plain `http://<host>:3000`, `ws://<host>:4500`)
+plus the TLS front: `https://<host>:3030` for the app and `wss://<host>:4530` for the terminal
+(page port + 1500, as always).
 
 ### Step 3: Access from iPad
 
-Open `https://192.168.1.32:3002` in Safari or Edge on your iPad.
+Open `https://192.168.1.32:3030` in Safari or Edge on your iPad.
 
-**First visit**: You'll see a certificate warning. Tap "Advanced" → "Proceed" (the cert is self-signed but safe for local dev).
-
-**For native clipboard support** (no modal fallback), install the mkcert root CA on iPad:
+**First visit**: without the root CA installed you'll see a certificate warning. Install it for native clipboard support (no modal fallback):
 1. AirDrop `"$(mkcert -CAROOT)/rootCA.pem"` to iPad
 2. Settings → General → VPN & Device Management → install the profile
 3. Settings → General → About → Certificate Trust Settings → enable full trust for mkcert
@@ -106,10 +96,10 @@ Open `https://192.168.1.32:3002` in Safari or Edge on your iPad.
 
 | Context | Clipboard API | Copy button behavior |
 |---------|--------------|---------------------|
-| `https://localhost:3002` | ✅ Available | Direct clipboard write |
-| `https://192.168.1.32:3002` (trusted CA) | ✅ Available | Direct clipboard write |
-| `https://192.168.1.32:3002` (untrusted) | ❌ Not available | Modal with selectable text |
-| `http://192.168.1.32:3002` | ❌ Not available | Modal with selectable text |
+| `http://localhost:3000` | ✅ Available | Direct clipboard write |
+| `https://192.168.1.32:3030` (trusted CA) | ✅ Available | Direct clipboard write |
+| `https://192.168.1.32:3030` (untrusted) | ❌ Not available | Modal with selectable text |
+| `http://192.168.1.32:3000` | ❌ Not available | Modal with selectable text |
 
 The copy button uses a **deferred ClipboardItem Promise** pattern — `clipboard.write()` is called during the click gesture (preserving user activation), and the data promise resolves when the WebSocket response arrives from `tmux show-buffer`.
 
@@ -137,8 +127,8 @@ The justfile `install` recipe does this automatically.
 
 ### WSS connection fails on HTTPS
 
-- Ensure `TERMINAL_WS_CERT` and `TERMINAL_WS_KEY` env vars point to valid cert files
-- `just dev-https` sets these automatically
+- The page must be served by the TLS front (`just prod-https` / `just dev-https`); it also listens on page port + 1500 for the terminal
+- Check the front's `[https]` log lines and that `just certs` covers the address you browse to
 - Check browser console for mixed content warnings (HTTPS page can't connect to `ws://`)
 
 ### tmux session not persisting

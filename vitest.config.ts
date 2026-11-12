@@ -21,6 +21,7 @@ const PROCESS_TEST_FILES = [
   'test/unit/web/features/071-pr-view/{content-hash,get-all-diffs,git-branch-service,per-file-diff-stats,pr-view-entrypoints}.test.ts',
   'test/unit/web/features/_platform/git/git-cli.test.ts',
   'test/unit/web/lib/server/git-diff-action.test.ts',
+  'test/unit/web/lib/tls-front.test.ts',
 ];
 
 export default defineConfig({
