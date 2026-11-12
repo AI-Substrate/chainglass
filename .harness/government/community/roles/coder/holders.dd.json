@@ -30,7 +30,10 @@
 					"harness_session": "01a1cd15-4d7b-76e8-977c-ac499b3e13fe",
 					"instance_key": "ssr-dashboard",
 					"machine": "ops.osk.lan",
+					"release_why": "All work landed and reviewed: e37b1ea0d, d65ea0930, 9c8406b3e, d98cb715a",
+					"released_by": "pij-outer-bobcat",
 					"seat": "pij-local-parakeet",
+					"to": "2026-11-12T07:18:26.866Z",
 					"why": "Nav speed wave 1: briefs/nav-requests/ssr-dashboard.md"
 				},
 				{

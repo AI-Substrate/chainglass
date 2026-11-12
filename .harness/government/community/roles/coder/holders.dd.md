@@ -19,7 +19,7 @@
 | id | seat | harness | harness_session | machine | instance_key | from | to | assigned_by | released_by | why | release_why |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | — | pij-vast-wombat | omp | 01a1cd04-be39-71d5-a922-2e3e5e10c71d | ops.osk.lan | strip-067 | 2026-11-11T23:50:13.831Z | — | pij-outer-bobcat | — | Strip question popper and alerts, briefs/strip-question-popper.md | — |
-| — | pij-local-parakeet | omp | 01a1cd15-4d7b-76e8-977c-ac499b3e13fe | ops.osk.lan | ssr-dashboard | 2026-11-12T00:08:29.886Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/ssr-dashboard.md | — |
+| — | pij-local-parakeet | omp | 01a1cd15-4d7b-76e8-977c-ac499b3e13fe | ops.osk.lan | ssr-dashboard | 2026-11-12T00:08:29.886Z | 2026-11-12T07:18:26.866Z | pij-outer-bobcat | pij-outer-bobcat | Nav speed wave 1: briefs/nav-requests/ssr-dashboard.md | All work landed and reviewed: e37b1ea0d, d65ea0930, 9c8406b3e, d98cb715a |
 | — | pij-frequent-clownfish | omp | 01a1cd15-5e16-75c5-91cb-f41a4ca46e38 | ops.osk.lan | home-prefetch | 2026-11-12T00:08:31.152Z | 2026-11-12T07:03:25.007Z | pij-outer-bobcat | pij-outer-bobcat | Nav speed wave 1: briefs/nav-requests/home-prefetch.md | home-prefetch landed (dd9713a6e, eef5899dd), reviewed pass-with-notes |
 | — | pij-professional-crane | omp | 01a1cd15-7427-719e-807b-8754fad61481 | ops.osk.lan | dev-beside-prod | 2026-11-12T00:08:32.502Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/dev-beside-prod.md | — |
 | — | pij-formal-mole | omp | 01a1cd15-878a-743e-847a-220c6b2c5e69 | ops.osk.lan | trace-idle | 2026-11-12T00:08:33.983Z | — | pij-outer-bobcat | — | Nav speed wave 1: briefs/nav-requests/trace-idle.md | — |
