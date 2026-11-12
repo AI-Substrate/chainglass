@@ -1,0 +1,18 @@
+.harness/government/community/roles/coder/memory/2026-11-12-review-fix-loop-fail-before-proofs-port.dd.json
+  h_9e71e8b09f7cf2 1-27
+.harness/government/community/roles/coder/memory/2026-11-12-review-fix-loop-fail-before-proofs-port.dd.md
+  h_9e71e8b09f7cf2 1-39
+.harness/government/community/roles/coder/memory/INDEX.md
+  h_9e71e8b09f7cf2 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b030dfdd4f870649c90b3f5158ba78038f27409b",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
