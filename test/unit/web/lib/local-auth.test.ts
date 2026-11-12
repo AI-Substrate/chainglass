@@ -38,7 +38,7 @@ import { _resetForTests as _resetBootstrapCache } from '../../../../apps/web/src
 import { requireLocalAuth } from '../../../../apps/web/src/lib/local-auth';
 import { removeTmpDir } from '../../../helpers/tmpdir';
 import { mkTempCwd } from '../../shared/auth-bootstrap-code/test-fixtures';
-const URL = 'http://localhost:3000/api/event-popper/list';
+const URL = 'http://localhost:3000/api/remote-view/sessions';
 
 interface ReqOptions {
   remote?: boolean;

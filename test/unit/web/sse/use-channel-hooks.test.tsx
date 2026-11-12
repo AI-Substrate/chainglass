@@ -32,7 +32,7 @@ describe('useChannelEvents', () => {
   function wrapper({ children }: { children: ReactNode }) {
     return (
       <MultiplexedSSEProvider
-        channels={['event-popper', 'file-changes']}
+        channels={['workflows', 'file-changes']}
         eventSourceFactory={fake.factory}
       >
         {children}
@@ -41,37 +41,37 @@ describe('useChannelEvents', () => {
   }
 
   it('accumulates messages for subscribed channel (AC-17)', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked', { id: 'q1' }));
-    act(() => fake.simulateChannelMessage('event-popper', 'question-answered', { id: 'q1' }));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed', { id: 'q1' }));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-saved', { id: 'q1' }));
 
     expect(result.current.messages).toHaveLength(2);
-    expect(result.current.messages[0].type).toBe('question-asked');
-    expect(result.current.messages[1].type).toBe('question-answered');
+    expect(result.current.messages[0].type).toBe('workflow-changed');
+    expect(result.current.messages[1].type).toBe('workflow-saved');
   });
 
   it('ignores events from other channels (AC-19)', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     act(() => fake.simulateOpen());
     act(() => fake.simulateChannelMessage('file-changes', 'file-changed', { path: 'a.txt' }));
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked', { id: 'q1' }));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed', { id: 'q1' }));
 
     expect(result.current.messages).toHaveLength(1);
-    expect(result.current.messages[0].type).toBe('question-asked');
+    expect(result.current.messages[0].type).toBe('workflow-changed');
   });
 
   it('respects maxMessages pruning', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper', { maxMessages: 2 }), {
+    const { result } = renderHook(() => useChannelEvents('workflows', { maxMessages: 2 }), {
       wrapper,
     });
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
-    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
-    act(() => fake.simulateChannelMessage('event-popper', 'msg3'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg1'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg2'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg3'));
 
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages[0].type).toBe('msg2');
@@ -79,13 +79,13 @@ describe('useChannelEvents', () => {
   });
 
   it('does not prune when maxMessages is 0 (unlimited)', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper', { maxMessages: 0 }), {
+    const { result } = renderHook(() => useChannelEvents('workflows', { maxMessages: 0 }), {
       wrapper,
     });
 
     act(() => fake.simulateOpen());
     for (let i = 0; i < 10; i++) {
-      act(() => fake.simulateChannelMessage('event-popper', `msg${i}`));
+      act(() => fake.simulateChannelMessage('workflows', `msg${i}`));
     }
 
     expect(result.current.messages).toHaveLength(10);
@@ -105,13 +105,13 @@ describe('useChannelEvents', () => {
       possible for any consumer, not only pij.
     - Worked Example: maxMessages 2, five events → messages.length 2, receivedCount 5.
     */
-    const { result } = renderHook(() => useChannelEvents('event-popper', { maxMessages: 2 }), {
+    const { result } = renderHook(() => useChannelEvents('workflows', { maxMessages: 2 }), {
       wrapper,
     });
 
     act(() => fake.simulateOpen());
     for (let i = 1; i <= 5; i++) {
-      act(() => fake.simulateChannelMessage('event-popper', `msg${i}`));
+      act(() => fake.simulateChannelMessage('workflows', `msg${i}`));
     }
 
     expect(result.current.messages).toHaveLength(2);
@@ -119,7 +119,7 @@ describe('useChannelEvents', () => {
   });
 
   it('counts only the subscribed channel, and starts at zero', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     expect(result.current.receivedCount).toBe(0);
     act(() => fake.simulateOpen());
@@ -139,23 +139,23 @@ describe('useChannelEvents', () => {
     - Quality Contribution: pins the one interaction between the two return values that could surprise.
     - Worked Example: 2 events, clear, 1 event → messages.length 1, receivedCount 3.
     */
-    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
-    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg1'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg2'));
     act(() => result.current.clearMessages());
-    act(() => fake.simulateChannelMessage('event-popper', 'msg3'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg3'));
 
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.receivedCount).toBe(3);
   });
 
   it('clearMessages resets to empty', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg1'));
     expect(result.current.messages).toHaveLength(1);
 
     act(() => result.current.clearMessages());
@@ -163,23 +163,23 @@ describe('useChannelEvents', () => {
   });
 
   it('provides independent arrays per subscriber (Finding 06)', () => {
-    const { result: result1 } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result: result1 } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     // Create second wrapper with its own provider for isolation
     const fake2 = createFakeMultiplexedSSEFactory();
     function wrapper2({ children }: { children: ReactNode }) {
       return (
-        <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake2.factory}>
+        <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake2.factory}>
           {children}
         </MultiplexedSSEProvider>
       );
     }
-    const { result: result2 } = renderHook(() => useChannelEvents('event-popper'), {
+    const { result: result2 } = renderHook(() => useChannelEvents('workflows'), {
       wrapper: wrapper2,
     });
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'only-for-sub1'));
+    act(() => fake.simulateChannelMessage('workflows', 'only-for-sub1'));
 
     // Sub1 has message, sub2 doesn't (different providers = independent)
     expect(result1.current.messages).toHaveLength(1);
@@ -190,7 +190,7 @@ describe('useChannelEvents', () => {
   });
 
   it('exposes isConnected from provider', () => {
-    const { result } = renderHook(() => useChannelEvents('event-popper'), { wrapper });
+    const { result } = renderHook(() => useChannelEvents('workflows'), { wrapper });
 
     expect(result.current.isConnected).toBe(false);
     act(() => fake.simulateOpen());
@@ -208,7 +208,7 @@ describe('useChannelCallback', () => {
   function wrapper({ children }: { children: ReactNode }) {
     return (
       <MultiplexedSSEProvider
-        channels={['event-popper', 'file-changes']}
+        channels={['workflows', 'file-changes']}
         eventSourceFactory={fake.factory}
       >
         {children}
@@ -219,35 +219,29 @@ describe('useChannelCallback', () => {
   it('fires callback per event (AC-18)', () => {
     const received: string[] = [];
 
-    renderHook(
-      () => useChannelCallback('event-popper', (event) => received.push(event.type ?? '')),
-      {
-        wrapper,
-      }
-    );
+    renderHook(() => useChannelCallback('workflows', (event) => received.push(event.type ?? '')), {
+      wrapper,
+    });
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
-    act(() => fake.simulateChannelMessage('event-popper', 'question-answered'));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed'));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-saved'));
 
-    expect(received).toEqual(['question-asked', 'question-answered']);
+    expect(received).toEqual(['workflow-changed', 'workflow-saved']);
   });
 
   it('ignores events from other channels (AC-19)', () => {
     const received: string[] = [];
 
-    renderHook(
-      () => useChannelCallback('event-popper', (event) => received.push(event.type ?? '')),
-      {
-        wrapper,
-      }
-    );
+    renderHook(() => useChannelCallback('workflows', (event) => received.push(event.type ?? '')), {
+      wrapper,
+    });
 
     act(() => fake.simulateOpen());
     act(() => fake.simulateChannelMessage('file-changes', 'file-changed'));
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed'));
 
-    expect(received).toEqual(['question-asked']);
+    expect(received).toEqual(['workflow-changed']);
   });
 
   it('uses stable ref pattern — no re-subscribe on callback change', () => {
@@ -256,14 +250,14 @@ describe('useChannelCallback', () => {
 
     const { rerender } = renderHook(
       () =>
-        useChannelCallback('event-popper', (event) =>
+        useChannelCallback('workflows', (event) =>
           received.push(`v${callbackVersion}:${event.type}`)
         ),
       { wrapper }
     );
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg1'));
     expect(received).toEqual(['v1:msg1']);
 
     // Change callback version and rerender
@@ -271,12 +265,12 @@ describe('useChannelCallback', () => {
     rerender();
 
     // New callback should fire with updated closure
-    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg2'));
     expect(received).toEqual(['v1:msg1', 'v2:msg2']);
   });
 
   it('exposes isConnected from provider', () => {
-    const { result } = renderHook(() => useChannelCallback('event-popper', () => {}), { wrapper });
+    const { result } = renderHook(() => useChannelCallback('workflows', () => {}), { wrapper });
 
     expect(result.current.isConnected).toBe(false);
     act(() => fake.simulateOpen());

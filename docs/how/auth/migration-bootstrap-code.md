@@ -18,7 +18,7 @@ The single most important change: **terminal-WS auth is now always on**.
 | Before Plan 084 | After Plan 084 |
 |---|---|
 | If `AUTH_SECRET` was unset, the terminal-WS sidecar silently disabled JWT validation and accepted unauthenticated upgrades. | The sidecar always validates a JWT. The signing key is `AUTH_SECRET` if set, otherwise an HKDF-derived key from the bootstrap code. There is no "no-auth" path anymore. |
-| `/api/event-popper/*` and `/api/tmux/events` were guarded by a localhost check only. | Same routes are bypassed at the proxy layer and gated by the route handler's `requireLocalAuth` composite check: localhost + (bootstrap cookie OR `X-Local-Token` per `apps/cli/.../event-popper-client.ts`). Browser flows still authenticate via the bootstrap cookie; CLI flows authenticate via the local token. |
+| Localhost HTTP sinks (the since-removed question/alert API and tmux events sink) were guarded by a localhost check only. | Localhost routes are gated by the route handler's `requireLocalAuth` composite check: localhost + (bootstrap cookie OR `X-Local-Token` from `.chainglass/server.json`). Today this gates the remote-view (Plan 088) routes. Browser flows still authenticate via the bootstrap cookie; CLI flows authenticate via the local token. |
 | Browsers loaded the UI immediately on first visit. | Browsers must enter the bootstrap code once before the UI renders (popup at `/`). |
 | `DISABLE_AUTH=true` was the canonical disable flag. | `DISABLE_GITHUB_OAUTH=true` is canonical; `DISABLE_AUTH` works for one release with a deprecation warn. |
 
@@ -36,7 +36,7 @@ identified:
    setup), the WebSocket sidecar accepted any client. Any process that could
    reach the WS port could attach a tmux pane.
 2. **Sidecar HTTP sinks unauthenticated** — anyone on the loopback interface
-   could POST arbitrary `event-popper` or `tmux/events` payloads. This included
+   could POST arbitrary payloads to the localhost event sinks. This included
    any other user on a multi-user dev host.
 3. **No web auth without GitHub OAuth** — operators who didn't want to set up
    GitHub OAuth got an open web app. The `DISABLE_AUTH=true` escape hatch

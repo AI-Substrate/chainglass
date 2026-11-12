@@ -11,9 +11,8 @@
  * The component does NOT subscribe to `overlay:close-all`; it is layout, not
  * overlay (KF-05).
  *
- * Styling matches the existing buttons in ExplorerPanel.rightActions (History,
- * QuestionPopperIndicator). PanelRight icon is the established dock-affordance
- * idiom (C-08).
+ * Styling matches the existing buttons in ExplorerPanel.rightActions (History).
+ * PanelRight icon is the established dock-affordance idiom (C-08).
  */
 
 import { PanelRight } from 'lucide-react';

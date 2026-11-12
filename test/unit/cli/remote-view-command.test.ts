@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * The verb handlers take an injectable `request` seam — production wires it from
  * `discoverServerInfo()` (server discovery) + `X-Local-Token` auth (Plan 084); these
  * tests inject a typed fake, so no live dev server is needed. Mirrors the
- * agent.command/event-popper-client CLI patterns.
+ * agent.command CLI pattern.
  */
 // Import Command from the SAME commander copy apps/cli's source resolves (v13) — the repo hoists a
 // v11 copy to the root that `test/` would otherwise pick up, making `new Command()` (v11) incompatible

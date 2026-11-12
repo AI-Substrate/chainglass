@@ -26,7 +26,6 @@
 | File Notes | file-notes | business | — | Plan 071 Phase 1 | active |
 | PR View | pr-view | business | — | Plan 071 Phase 4 | active |
 | External Events | _platform/external-events | infrastructure | _platform | Plan 067 — Event Popper | active |
-| Question Popper | question-popper | business | — | Plan 067 — Event Popper | active |
 | Themes | _platform/themes | infrastructure | _platform | Plan 073 — File Type Icons | active |
 | Git | _platform/git | infrastructure | _platform | Plan 084 FX007 | active |
 | Remote View | remote-view | business | — | Plan 088 | active |

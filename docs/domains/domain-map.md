@@ -48,11 +48,8 @@ flowchart LR
     fileNotes["📝 file-notes<br/>INoteService · NoteLinkType<br/>NoteFilter · FakeNoteService<br/>JsonlNoteService · registerNotesCommands<br/>NotesOverlayPanel · NoteModal<br/>NoteIndicatorDot · useNotes<br/>GET/POST/PATCH/DELETE<br/>/api/file-notes"]:::new
     prView["🔍 pr-view<br/>PRViewFile · PRViewData<br/>ComparisonMode · PRViewFileState<br/>PRViewOverlayProvider · usePRViewOverlay<br/>usePRViewData · registerPRViewSDK<br/>aggregatePRViewData · getAllDiffs<br/>GET/POST/DELETE<br/>/api/pr-view"]:::new
 
-    %% NEW infrastructure domains (Plan 067)
-    externalEvents["⚙️ _platform/external-events<br/>EventPopperRequest<br/>generateEventId<br/>readServerInfo<br/>localhostGuard<br/>detectTmuxContext"]:::new
-
-    %% NEW business domains (Plan 067)
-    questionPopper["❓ question-popper<br/>IQuestionPopperService<br/>QuestionPayloadSchema<br/>AnswerPayloadSchema<br/>AlertPayloadSchema<br/>FakeQuestionPopperService"]:::new
+    %% Infrastructure domain (Plan 067; question popper removed 2026-11-12)
+    externalEvents["⚙️ _platform/external-events<br/>readServerInfo · writeServerInfo<br/>server.json (port + localToken)<br/>localhostGuard"]:::new
 
     %% NEW business domains (Plan 088)
     remoteView["📺 remote-view<br/>IRemoteViewService · SessionSummary<br/>ClientMessage · ServerMessage<br/>encode/decodeFrameHeader<br/>FakeStreamd (frame-replay)<br/>session-machine · useRemoteViewSession<br/>GET /api/remote-view/token<br/>streamd daemon (Swift, Phase 4)<br/>Control API: loopback + JWT (≠/health)<br/>/health /windows[single] /sessions /stream /shutdown<br/>discovery registry (.chainglass/streamd-*.json)"]:::new
@@ -153,17 +150,11 @@ flowchart LR
     %% Verified Phase 7 (2026-05-03): edge present, contracts accurate, Plan 084 attribution preserved.
     terminal -->|"activeSigningSecret(cwd)<br/>findWorkspaceRoot()<br/>verifyCookieValue()<br/>BOOTSTRAP_COOKIE_NAME"| auth
 
-    %% Plan 084 Phase 5 — _platform/events sink routes (event-popper/*, tmux/events) consume
-    %% _platform/auth for the requireLocalAuth() composite cookie + X-Local-Token check.
+    %% Plan 084 Phase 5 — requireLocalAuth() composite cookie + X-Local-Token check
+    %% (now gating remote-view + workflow-execution routes) consumes _platform/auth.
     %% Verified Phase 7 (2026-05-03): edge present, contracts accurate, Plan 084 attribution preserved.
     events -->|"getBootstrapCodeAndKey()<br/>verifyCookieValue()<br/>BOOTSTRAP_COOKIE_NAME<br/>findWorkspaceRoot()"| auth
-
-    %% External Events dependencies (Plan 067)
-    externalEvents -->|"WorkspaceDomain.EventPopper"| events
-
-    %% Question Popper dependencies (Plan 067)
-    questionPopper -->|"EventPopperRequest<br/>generateEventId()"| externalEvents
-    questionPopper -->|"ICentralEventNotifier<br/>WorkspaceDomain.EventPopper"| events
+    events -->|"readServerInfo().localToken"| externalEvents
 
     %% Auth dependencies (consumer → provider: business domains consume auth protection)
     events -->|"auth()<br/>session check"| auth
@@ -222,7 +213,7 @@ flowchart LR
 | _platform/file-ops | IFileSystem, IPathResolver | file-browser, viewer, workflow-ui, workspace | — | — | ✅ |
 | _platform/workspace-url | workspaceHref, paramsCaches | file-browser, panel-layout, workflow-ui, workunit-editor, terminal, workspace | — | — | ✅ |
 | _platform/viewer | FileViewer, MarkdownViewer, DiffViewer, highlightCode, detectContentType, isBinaryExtension | file-browser | IFileSystem | file-ops | ✅ |
-| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, MultiplexedSSEProvider, useChannelEvents, useChannelCallback, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state, question-popper | — | — | ✅ |
+| _platform/events | ICentralEventNotifier, ISSEBroadcaster, useSSE, MultiplexedSSEProvider, useChannelEvents, useChannelCallback, FileChangeHub, useFileChanges, FileChangeProvider, toast() | file-browser, workflow-ui, agents, state | — | — | ✅ |
 | _platform/panel-layout | PanelShell, ExplorerPanel, LeftPanel, MainPanel, PanelHeader, BarHandler, AsciiSpinner, FlowSpaceSearchResult, FlowSpaceAvailability, FlowSpaceSearchMode | file-browser, future workspace pages | panel URL param | workspace-url | ✅ |
 | file-browser | Browser page, FileTree, FileViewerPanel, WorkspaceContext, EmojiPicker, ColorPicker, Settings | — | IFileSystem, workspaceHref, viewers, toast, events, panels, IWorkspaceService, useWorkspaceContext, NoteIndicatorDot, fetchFilesWithNotes, useNotesOverlay | file-ops, workspace-url, viewer, events, panel-layout, workspace, file-notes | ✅ |
 | workspace | IWorkspaceService, IWorkspaceContextResolver, IGitWorktreeResolver, IGitWorktreeManager, useWorkspaceContext | file-browser, workflow-ui, workunit-editor, terminal, agents | IFileSystem, IPathResolver, workspaceHref, workspaceParams, requireAuth(), middleware protection | file-ops, workspace-url, auth | 🟠 New |
@@ -241,8 +232,7 @@ flowchart LR
 | _platform/auth | auth(), signIn(), signOut(), requireAuth(), useAuth(), middleware protection, isUserAllowed(), SessionProvider | file-browser, workflow-ui, workunit-editor (via middleware), workspace (via middleware and server actions), file-notes | — | — | ✅ |
 | file-notes | INoteService, NoteLinkType, NoteFilter, FakeNoteService, JsonlNoteService, NotesOverlayPanel, NoteModal, NoteIndicatorDot, BulkDeleteDialog, useNotes, useNotesOverlay, registerFileNotesSDK, registerNotesCommands, GET/POST/PATCH/DELETE /api/file-notes | file-browser, CLI, pr-view | requireAuth(), auth(), overlay anchor, workspaceHref(), toast(), registerFileNotesSDK | auth, panel-layout, workspace-url, events, sdk | 🟠 New |
 | pr-view | PRViewFile, PRViewData, ComparisonMode, PRViewFileState, PRViewOverlayProvider, usePRViewOverlay, usePRViewData, registerPRViewSDK, aggregatePRViewData, getAllDiffs, GET/POST/DELETE /api/pr-view | file-browser (future) | getWorkingChanges(), requireAuth(), auth(), DiffViewer, overlay anchor, registerPRViewSDK, FileChangeProvider, useFileChanges, NoteIndicatorDot, fetchFilesWithNotes | file-browser, auth, viewer, panel-layout, sdk, events, file-notes | 🟠 New |
-| _platform/external-events | EventPopperRequest, EventPopperResponse, generateEventId, readServerInfo, writeServerInfo, localhostGuard, detectTmuxContext, WorkspaceDomain.EventPopper | question-popper | WorkspaceDomain | events | 🟠 New |
+| _platform/external-events | readServerInfo, writeServerInfo, removeServerInfo, ServerInfoSchema (server.json incl. localToken), localhostGuard, isLocalhostRequest | CLI, terminal, events (requireLocalAuth), proxy.ts | — | — | 🟠 New |
 | _platform/git | parseRemote, buildFileUrl, getRemoteUrl, getCurrentBranch, getDefaultBaseBranch, getCurrentCommitSha, RepoHost, Remote, BuildOptions, RepoInfo | file-browser, pr-view | — (zero deps; pure helpers + Node child_process) | — | 🟠 New |
-| question-popper | IQuestionPopperService, QuestionPayloadSchema, AnswerPayloadSchema, AlertPayloadSchema, FakeQuestionPopperService, QuestionIn, QuestionOut, AlertIn | (Phase 3: API routes) | EventPopperRequest, generateEventId, ICentralEventNotifier | external-events, events | 🟠 New |
 | remote-view | IRemoteViewService, SessionSummary, ClientMessage, ServerMessage, encode/decodeFrameHeader, FakeStreamd, session-machine, useRemoteViewSession, GET /api/remote-view/token; **streamd daemon (Swift) + loopback JWT-gated Control API (`/health` public; `/windows`[single-window], `/sessions`, `/stream`, `/shutdown`) + discovery registry** | Phase 3 viewport, Phase 4 Swift daemon (protocol mirror + live capture/input/lifecycle), Phase 5 routes/agents | getBootstrapCodeAndKey(), verifyCookieValue(), findWorkspaceRoot(), SignJWT (auth); buildDefaultAllowedOrigins/parseAllowedOrigins (Origin allowlist, Swift mirror); events/state/sdk/panel-layout (designed) | auth (Phase 2 + 4); events, state, sdk, panel-layout (Phases 3–5) | 🟠 New |
 | 089-first-class-pij | ISpineCursor + createFileSpineCursor, IPijRecords + createPijRecords, IFlowReader + createFlowReader, PijChannelEvent, FleetRow, FlowSummary, PollerStatus, PijPollerService, startPijPoller, joinSeatsToWorkspace/joinFlowToProject, FakePijExecutor, GET /api/pij/{fleet,tree,flow,status} | Phase 2 fleet page, Phase 3 flow view, Phase 4 global tree + overlay panel | auth() (route gate); sseManager.broadcast(`pij` channel); instrumentation.register() bootstrap slot | auth, events, app shell | 🟠 New |

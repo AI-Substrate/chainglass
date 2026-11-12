@@ -23,7 +23,6 @@ import { MultiplexedSSEProvider } from '../../../../src/lib/sse';
 import { updateSDKMru, updateSDKSettings } from '../../../actions/sdk-settings-actions';
 import { NotesOverlayWrapper } from './notes-overlay-wrapper';
 import { PRViewOverlayWrapper } from './pr-view-overlay-wrapper';
-import { QuestionPopperOverlayWrapper } from './question-popper-overlay-wrapper';
 import { TerminalOverlayWrapper } from './terminal-overlay-wrapper';
 import { WorkspaceAttentionWrapper } from './workspace-attention-wrapper';
 
@@ -34,7 +33,6 @@ export const dynamic = 'force-dynamic';
  * Phase 3+ will consume these channels via useChannelEvents/useChannelCallback.
  */
 const WORKSPACE_SSE_CHANNELS = [
-  'event-popper',
   'file-changes',
   'work-unit-state',
   'workflows',
@@ -108,7 +106,7 @@ export default async function WorkspaceLayout({ children, params }: LayoutProps)
           <MultiplexedSSEProvider channels={[...WORKSPACE_SSE_CHANNELS]}>
             <NotesOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
               <PRViewOverlayWrapper defaultWorktreePath={defaultWorktreePath}>
-                <QuestionPopperOverlayWrapper>{children}</QuestionPopperOverlayWrapper>
+                {children}
               </PRViewOverlayWrapper>
             </NotesOverlayWrapper>
           </MultiplexedSSEProvider>

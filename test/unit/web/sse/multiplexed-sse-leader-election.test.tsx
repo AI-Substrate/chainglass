@@ -159,7 +159,7 @@ function createFakeBroadcastBus() {
   };
 }
 
-const CHANNELS = ['event-popper', 'file-changes'];
+const CHANNELS = ['workflows', 'file-changes'];
 const LOCK_NAME = `chainglass-sse-leader:${CHANNELS.join(',')}`;
 
 /** Subscribes to a channel and records every event it receives. */
@@ -213,7 +213,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
     await flush();
 
     expect(tab.fake.instanceCount).toBe(1);
-    expect(tab.fake.instance?.url).toBe('/api/events/mux?channels=event-popper,file-changes');
+    expect(tab.fake.instance?.url).toBe('/api/events/mux?channels=workflows,file-changes');
     expect(locks.isHeld(LOCK_NAME)).toBe(true);
   });
 
@@ -230,7 +230,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
     const follower = renderTab({
       locks,
       bus,
-      children: <Recorder channel="event-popper" sink={followerSink} />,
+      children: <Recorder channel="workflows" sink={followerSink} />,
     });
     await flush();
 
@@ -240,9 +240,9 @@ describe('MultiplexedSSEProvider — leader election', () => {
 
     // ...and the follower still gets the data, fanned out over the channel.
     act(() => leader.fake.simulateOpen());
-    act(() => leader.fake.simulateChannelMessage('event-popper', 'question-asked'));
+    act(() => leader.fake.simulateChannelMessage('workflows', 'workflow-changed'));
 
-    expect(followerSink).toEqual(['question-asked']);
+    expect(followerSink).toEqual(['workflow-changed']);
     expect(follower.fake.instanceCount).toBe(0);
   });
 
@@ -257,7 +257,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
     const follower = renderTab({
       locks,
       bus,
-      children: <Recorder channel="event-popper" sink={promotedSink} />,
+      children: <Recorder channel="workflows" sink={promotedSink} />,
     });
     await flush();
     expect(follower.fake.instanceCount).toBe(0);
@@ -274,7 +274,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
 
     // The promoted tab now serves its own subscribers from its own socket.
     act(() => follower.fake.simulateOpen());
-    act(() => follower.fake.simulateChannelMessage('event-popper', 'after-promotion'));
+    act(() => follower.fake.simulateChannelMessage('workflows', 'after-promotion'));
     expect(promotedSink).toEqual(['after-promotion']);
   });
 
@@ -287,7 +287,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
     const leader = renderTab({
       locks,
       bus,
-      children: <Recorder channel="event-popper" sink={leaderSink} />,
+      children: <Recorder channel="workflows" sink={leaderSink} />,
     });
     await flush();
 
@@ -296,7 +296,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
     const follower = renderTab({
       locks,
       bus,
-      children: <Recorder channel="event-popper" sink={followerSink} />,
+      children: <Recorder channel="workflows" sink={followerSink} />,
     });
     await flush();
 
@@ -310,14 +310,14 @@ describe('MultiplexedSSEProvider — leader election', () => {
     // Even a wire payload that carries __control must not be dispatched.
     act(() =>
       leader.fake.instance?.simulateMessage(
-        JSON.stringify({ channel: 'event-popper', type: 'spoofed', __control: 'status' })
+        JSON.stringify({ channel: 'workflows', type: 'spoofed', __control: 'status' })
       )
     );
     expect(leaderSink).toEqual([]);
     expect(followerSink).toEqual([]);
 
     // A normal payload on the same channel still gets through.
-    act(() => leader.fake.simulateChannelMessage('event-popper', 'real-event'));
+    act(() => leader.fake.simulateChannelMessage('workflows', 'real-event'));
     expect(leaderSink).toEqual(['real-event']);
     expect(followerSink).toEqual(['real-event']);
   });
@@ -453,7 +453,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
       children: (
         <>
           <Probe />
-          <Recorder channel="event-popper" sink={sink} />
+          <Recorder channel="workflows" sink={sink} />
         </>
       ),
     });
@@ -477,7 +477,7 @@ describe('MultiplexedSSEProvider — leader election', () => {
     // dead tab with a different cause. So assert it actually FOLLOWS:
     act(() => leader.fake.simulateOpen());
     expect(latest().connected).toBe(true); // status adopted from the real leader
-    act(() => leader.fake.simulateChannelMessage('event-popper', 'after-stand-down'));
+    act(() => leader.fake.simulateChannelMessage('workflows', 'after-stand-down'));
     expect(sink).toEqual(['after-stand-down']); // data dispatched to its subscribers
 
     failed.unmount();
@@ -493,8 +493,8 @@ describe('MultiplexedSSEProvider — leader election', () => {
     function TwoSubscribers() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        const unsubKeep = subscribe('event-popper', (e) => kept.push(e.type ?? ''));
-        unsubDropped = subscribe('event-popper', (e) => dropped.push(e.type ?? ''));
+        const unsubKeep = subscribe('workflows', (e) => kept.push(e.type ?? ''));
+        unsubDropped = subscribe('workflows', (e) => dropped.push(e.type ?? ''));
         return () => {
           unsubKeep();
           unsubDropped?.();
@@ -507,13 +507,13 @@ describe('MultiplexedSSEProvider — leader election', () => {
     await flush();
     act(() => tab.fake.simulateOpen());
 
-    act(() => tab.fake.simulateChannelMessage('event-popper', 'first'));
+    act(() => tab.fake.simulateChannelMessage('workflows', 'first'));
     expect(kept).toEqual(['first']);
     expect(dropped).toEqual(['first']);
 
     // Removing ONE subscriber must not tear down the channel's Set.
     act(() => unsubDropped?.());
-    act(() => tab.fake.simulateChannelMessage('event-popper', 'second'));
+    act(() => tab.fake.simulateChannelMessage('workflows', 'second'));
 
     expect(kept).toEqual(['first', 'second']);
     expect(dropped).toEqual(['first']);

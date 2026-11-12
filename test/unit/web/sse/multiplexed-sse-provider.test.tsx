@@ -40,7 +40,7 @@ describe('MultiplexedSSEProvider', () => {
   function wrapper({ children }: { children: ReactNode }) {
     return (
       <MultiplexedSSEProvider
-        channels={['event-popper', 'file-changes']}
+        channels={['workflows', 'file-changes']}
         eventSourceFactory={fake.factory}
       >
         {children}
@@ -51,7 +51,7 @@ describe('MultiplexedSSEProvider', () => {
   it('connects to mux endpoint with requested channels (AC-11)', () => {
     render(
       <MultiplexedSSEProvider
-        channels={['event-popper', 'file-changes', 'work-unit-state']}
+        channels={['workflows', 'file-changes', 'work-unit-state']}
         eventSourceFactory={fake.factory}
       >
         <div />
@@ -60,7 +60,7 @@ describe('MultiplexedSSEProvider', () => {
 
     expect(fake.instance).toBeTruthy();
     expect(fake.instance?.url).toBe(
-      '/api/events/mux?channels=event-popper,file-changes,work-unit-state'
+      '/api/events/mux?channels=workflows,file-changes,work-unit-state'
     );
     expect(fake.instanceCount).toBe(1);
   });
@@ -68,7 +68,7 @@ describe('MultiplexedSSEProvider', () => {
   it('creates exactly one EventSource (AC-11)', () => {
     render(
       <MultiplexedSSEProvider
-        channels={['event-popper', 'file-changes']}
+        channels={['workflows', 'file-changes']}
         eventSourceFactory={fake.factory}
       >
         <div />
@@ -84,7 +84,7 @@ describe('MultiplexedSSEProvider', () => {
     function TestConsumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        return subscribe('event-popper', (event) => {
+        return subscribe('workflows', (event) => {
           received.push(`ep:${event.type}`);
         });
       }, [subscribe]);
@@ -93,7 +93,7 @@ describe('MultiplexedSSEProvider', () => {
 
     render(
       <MultiplexedSSEProvider
-        channels={['event-popper', 'file-changes']}
+        channels={['workflows', 'file-changes']}
         eventSourceFactory={fake.factory}
       >
         <TestConsumer />
@@ -103,12 +103,12 @@ describe('MultiplexedSSEProvider', () => {
     act(() => fake.simulateOpen());
 
     // Event for subscribed channel
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked', { id: 'q1' }));
-    expect(received).toEqual(['ep:question-asked']);
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed', { id: 'q1' }));
+    expect(received).toEqual(['ep:workflow-changed']);
 
     // Event for different channel — should NOT reach subscriber
     act(() => fake.simulateChannelMessage('file-changes', 'file-changed', { path: 'a.txt' }));
-    expect(received).toEqual(['ep:question-asked']);
+    expect(received).toEqual(['ep:workflow-changed']);
   });
 
   it('delivers events to multiple subscribers on same channel', () => {
@@ -118,8 +118,8 @@ describe('MultiplexedSSEProvider', () => {
     function MultiConsumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        const unsub1 = subscribe('event-popper', (e) => sub1.push(e.type ?? ''));
-        const unsub2 = subscribe('event-popper', (e) => sub2.push(e.type ?? ''));
+        const unsub1 = subscribe('workflows', (e) => sub1.push(e.type ?? ''));
+        const unsub2 = subscribe('workflows', (e) => sub2.push(e.type ?? ''));
         return () => {
           unsub1();
           unsub2();
@@ -129,16 +129,16 @@ describe('MultiplexedSSEProvider', () => {
     }
 
     render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <MultiConsumer />
       </MultiplexedSSEProvider>
     );
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed'));
 
-    expect(sub1).toEqual(['question-asked']);
-    expect(sub2).toEqual(['question-asked']);
+    expect(sub1).toEqual(['workflow-changed']);
+    expect(sub2).toEqual(['workflow-changed']);
   });
 
   it('isolates subscriber errors — one throwing does not affect others (AC-13)', () => {
@@ -148,10 +148,10 @@ describe('MultiplexedSSEProvider', () => {
     function ErrorConsumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        const unsub1 = subscribe('event-popper', () => {
+        const unsub1 = subscribe('workflows', () => {
           throw new Error('subscriber crash');
         });
-        const unsub2 = subscribe('event-popper', (e) => {
+        const unsub2 = subscribe('workflows', (e) => {
           received.push(e.type ?? '');
         });
         return () => {
@@ -163,16 +163,16 @@ describe('MultiplexedSSEProvider', () => {
     }
 
     render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <ErrorConsumer />
       </MultiplexedSSEProvider>
     );
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'question-asked'));
+    act(() => fake.simulateChannelMessage('workflows', 'workflow-changed'));
 
     // Second subscriber still receives despite first throwing
-    expect(received).toEqual(['question-asked']);
+    expect(received).toEqual(['workflow-changed']);
     expect(consoleWarn).toHaveBeenCalledWith(
       expect.stringContaining('[MultiplexedSSE]'),
       expect.any(Error)
@@ -182,7 +182,7 @@ describe('MultiplexedSSEProvider', () => {
 
   it('reconnects with exponential backoff on error (AC-14)', () => {
     render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <div />
       </MultiplexedSSEProvider>
     );
@@ -209,7 +209,7 @@ describe('MultiplexedSSEProvider', () => {
   it('stops reconnecting after max attempts (AC-14)', () => {
     render(
       <MultiplexedSSEProvider
-        channels={['event-popper']}
+        channels={['workflows']}
         eventSourceFactory={fake.factory}
         maxReconnectAttempts={2}
       >
@@ -241,7 +241,7 @@ describe('MultiplexedSSEProvider', () => {
 
   it('cleans up EventSource on unmount (AC-15)', () => {
     const { unmount } = render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <div />
       </MultiplexedSSEProvider>
     );
@@ -265,7 +265,7 @@ describe('MultiplexedSSEProvider', () => {
     }
 
     render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <StateObserver />
       </MultiplexedSSEProvider>
     );
@@ -301,27 +301,27 @@ describe('MultiplexedSSEProvider', () => {
     function UnsubConsumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        unsubFn = subscribe('event-popper', (e) => received.push(e.type ?? ''));
+        unsubFn = subscribe('workflows', (e) => received.push(e.type ?? ''));
         return unsubFn;
       }, [subscribe]);
       return null;
     }
 
     render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <UnsubConsumer />
       </MultiplexedSSEProvider>
     );
 
     act(() => fake.simulateOpen());
-    act(() => fake.simulateChannelMessage('event-popper', 'msg1'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg1'));
     expect(received).toEqual(['msg1']);
 
     // Unsubscribe
     act(() => unsubFn?.());
 
     // Should not receive after unsubscribe
-    act(() => fake.simulateChannelMessage('event-popper', 'msg2'));
+    act(() => fake.simulateChannelMessage('workflows', 'msg2'));
     expect(received).toEqual(['msg1']);
   });
 
@@ -332,13 +332,13 @@ describe('MultiplexedSSEProvider', () => {
     function Consumer() {
       const { subscribe } = useMultiplexedSSE();
       useEffect(() => {
-        return subscribe('event-popper', (e) => received.push(e.type ?? ''));
+        return subscribe('workflows', (e) => received.push(e.type ?? ''));
       }, [subscribe]);
       return null;
     }
 
     render(
-      <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+      <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
         <Consumer />
       </MultiplexedSSEProvider>
     );
@@ -347,7 +347,7 @@ describe('MultiplexedSSEProvider', () => {
     // Send malformed message directly via FakeEventSource
     act(() => fake.instance?.simulateMessage('not-json-at-all'));
     // Then a valid message
-    act(() => fake.simulateChannelMessage('event-popper', 'valid'));
+    act(() => fake.simulateChannelMessage('workflows', 'valid'));
 
     // Only the valid message arrives
     expect(received).toEqual(['valid']);
@@ -357,7 +357,7 @@ describe('MultiplexedSSEProvider', () => {
   it('resets reconnect counter on successful open', () => {
     render(
       <MultiplexedSSEProvider
-        channels={['event-popper']}
+        channels={['workflows']}
         eventSourceFactory={fake.factory}
         maxReconnectAttempts={3}
       >

@@ -29,7 +29,7 @@ export interface UseChannelCallbackReturn {
  * The callback reference is tracked via useRef, so changing the callback
  * between renders does NOT cause re-subscription.
  *
- * @param channel — SSE channel name (e.g. 'event-popper', 'file-changes')
+ * @param channel — SSE channel name (e.g. 'workflows', 'file-changes')
  * @param callback — fired for each event on the channel
  */
 export function useChannelCallback(

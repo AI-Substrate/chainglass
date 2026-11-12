@@ -46,7 +46,6 @@ import { useTerminalSessions } from '@/features/064-terminal/hooks/use-terminal-
 import { resolveSplitSession } from '@/features/064-terminal/lib/resolve-split-session';
 import { sessionNameFromWorktreePath } from '@/features/064-terminal/lib/session-name-from-worktree-path';
 import { terminalParams } from '@/features/064-terminal/params/terminal.params';
-import { QuestionPopperIndicator } from '@/features/067-question-popper/components/question-popper-indicator';
 import { useNotesOverlay } from '@/features/071-file-notes/hooks/use-notes-overlay';
 import { RemoteViewLaunchButton } from '@/features/088-remote-view/components/remote-view-launch-button';
 import { useRemoteViewEvents } from '@/features/088-remote-view/hooks/use-remote-view-events';
@@ -1609,7 +1608,6 @@ function BrowserClientInner({
                     Lives in ExplorerPanel.rightActions, which is mobile-skipped
                     by the parent PanelShell branch — no extra gate needed. */}
                 <SplitTerminalToggleButton value={splitOn} onChange={handleSplitToggleChange} />
-                <QuestionPopperIndicator />
               </>
             }
           />

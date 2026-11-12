@@ -59,7 +59,7 @@ import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 import { removeTmpDir } from '../../helpers/tmpdir';
 
 const VERIFY_URL = 'http://localhost:3000/api/bootstrap/verify';
-const SINK_URL = 'http://localhost:3000/api/event-popper/list';
+const SINK_URL = 'http://localhost:3000/api/remote-view/sessions';
 
 function makeVerifyReq(code: string, ip = '1.2.3.4'): NextRequest {
   return new NextRequest(VERIFY_URL, {

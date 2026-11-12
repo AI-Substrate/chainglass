@@ -14,11 +14,11 @@
  * (added authoritatively by SSEManager.broadcast).
  */
 export type MultiplexedSSEMessage = {
-  /** SSE channel this event was broadcast on, e.g. 'event-popper', 'file-changes'.
+  /** SSE channel this event was broadcast on, e.g. 'workflows', 'file-changes'.
    * Always present in wire format (added by SSEManager). Optional in consumer
    * types since domain hooks don't need to declare it. */
   channel?: string;
-  /** Event type within the channel, e.g. 'question-asked', 'file-changed'.
+  /** Event type within the channel, e.g. 'workflow-changed', 'file-changed'.
    * Optional — not all channel events include a type field (e.g. workflow, unit-catalog). */
   type?: string;
   /** Domain-specific payload fields */

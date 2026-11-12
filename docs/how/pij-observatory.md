@@ -158,9 +158,8 @@ them the same behaviour because all three dispatch one `pij:toggle` CustomEvent:
 | the `pij.toggleOverlay` palette command | `sdk/register.ts` (ADR-0009) |
 | `$mod+Shift+KeyF` | the same static manifest — the tinykeys map is built once at mount, so a dynamically registered binding would never fire |
 
-It is the **fifth F-14 anchored sibling** (terminal, notes, pr-view, question-popper, pij), copied
-from `pr-view` rather than reinvented. The `question-popper` sibling is a known outlier — missing
-`isOpeningRef`, its z-index and its anchor measurement — and was deliberately not used as the model.
+It is the **fourth F-14 anchored sibling** (terminal, notes, pr-view, pij), copied
+from `pr-view` rather than reinvented.
 
 Three details are load-bearing:
 

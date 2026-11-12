@@ -57,14 +57,12 @@ import {
   YamlParserAdapter,
 } from '@chainglass/shared';
 // Plan 059: Import FakeWorkUnitStateService for test container
-import { FakeQuestionPopperService, FakeWorkUnitStateService } from '@chainglass/shared/fakes';
+import { FakeWorkUnitStateService } from '@chainglass/shared/fakes';
 // Plan 027: Import CentralEventNotifier types from shared
 import type { ICentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 import { FakeCentralEventNotifier } from '@chainglass/shared/features/027-central-notify-events';
 // Plan 034: AgentManagerService for orchestration
 import { AgentManagerService as OrchestrationAgentManagerService } from '@chainglass/shared/features/034-agentic-cli';
-// Plan 067: QuestionPopperService for external question/answer lifecycle
-import type { IQuestionPopperService } from '@chainglass/shared/interfaces';
 import type { ICopilotClient } from '@chainglass/shared/interfaces/copilot-sdk.interface';
 // Plan 059: WorkUnitStateService for centralized work unit status registry
 import type { IWorkUnitStateService } from '@chainglass/shared/interfaces/work-unit-state.interface';
@@ -118,8 +116,6 @@ import { CopilotClient } from '@github/copilot-sdk';
 import { type DependencyContainer, container } from 'tsyringe';
 // Plan 027: CentralEventNotifierService (real implementation)
 import { CentralEventNotifierService } from '../features/027-central-notify-events/central-event-notifier.service';
-// Plan 067: QuestionPopperService (real implementation)
-import { QuestionPopperService } from '../features/067-question-popper/lib/question-popper.service';
 // Plan 088 Phase 5 (T004): daemon-control surface behind /windows + /health
 import {
   REMOTE_VIEW_DAEMON_CONTROL_TOKEN,
@@ -582,33 +578,6 @@ export function createProductionContainer(config?: IConfigService): DependencyCo
     }
   );
 
-  // ==================== Plan 067: QuestionPopperService ====================
-  // Singleton: one service per process. Rehydrates from disk on construction.
-  let questionPopperInstance: IQuestionPopperService | null = null;
-  childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
-    useFactory: (c) => {
-      if (questionPopperInstance) return questionPopperInstance;
-      if (!resolvedWorktreePath) {
-        try {
-          const { execSync } = require('node:child_process');
-          resolvedWorktreePath = execSync('git rev-parse --show-toplevel', {
-            encoding: 'utf-8',
-            cwd: process.cwd(),
-          }).trim();
-        } catch {
-          resolvedWorktreePath = process.cwd();
-          console.warn('[DI] Failed to resolve git worktree root, falling back to cwd');
-        }
-      }
-      const notifier = c.resolve<ICentralEventNotifier>(WORKSPACE_DI_TOKENS.CENTRAL_EVENT_NOTIFIER);
-      questionPopperInstance = new QuestionPopperService(
-        resolvedWorktreePath ?? process.cwd(),
-        notifier
-      );
-      return questionPopperInstance;
-    },
-  });
-
   // ==================== Plan 088: Remote View Service ====================
   // Phase 5 (T003): the real daemon-backed adapter (decorator-free useFactory,
   // ADR-0004). Construction does no I/O — the daemon spawns lazily on the first
@@ -834,12 +803,6 @@ export function createTestContainer(): DependencyContainer {
       useValue: new FakeWorkUnitStateService(),
     }
   );
-
-  // ==================== Plan 067: QuestionPopperService (Fake) ====================
-
-  childContainer.register<IQuestionPopperService>(WORKSPACE_DI_TOKENS.QUESTION_POPPER_SERVICE, {
-    useValue: new FakeQuestionPopperService(),
-  });
 
   // ==================== Plan 088: Remote View Service (Fake) ====================
   // T007 (DL-008): memoized for the same single-instance guarantee the production container makes —

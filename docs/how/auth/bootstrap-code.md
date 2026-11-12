@@ -24,7 +24,7 @@ the operator rotates the code.
 
 **What it gates**: every page (including `/login`) and every `/api/*` route
 *except* the four bypass prefixes listed below. The same gate also protects the
-terminal-WS sidecar and every event-popper / tmux-events sink.
+terminal-WS sidecar and the localhost CLI routes gated by `requireLocalAuth`.
 
 **Bypass route prefixes** (locked contract — see `AUTH_BYPASS_ROUTES` in
 `apps/web/src/lib/cookie-gate.ts`):
@@ -37,17 +37,12 @@ Always-public (no auth at all):
 /api/bootstrap/forget   — the route that clears the cookie
 ```
 
-Localhost-gated by the route handler's own composite check (`requireLocalAuth`
-enforces localhost + cookie OR localhost + X-Local-Token):
-```
-/api/event-popper       — 8 event-popper sinks (ask/answer/list/etc.)
-/api/tmux/events        — tmux events sink
-```
-
-The two sink prefixes are bypassed at the proxy layer because their
-`requireLocalAuth` gate is the canonical defense — keeping the cookie gate
-in front would block CLI X-Local-Token flows (the AC-17 contract). The
-proxy bypass + handler gate together implement "localhost + (cookie OR
+Localhost CLI routes (e.g. `/api/remote-view/**`) are
+not enumerated: the proxy lets a localhost request carrying `X-Local-Token`
+through, and the route handler's composite `requireLocalAuth` check (localhost +
+cookie OR localhost + X-Local-Token) is the canonical defense — keeping the
+cookie gate in front would block CLI X-Local-Token flows (the AC-17 contract).
+The proxy bypass + handler gate together implement "localhost + (cookie OR
 X-Local-Token)".
 
 > **Documentation rule**: when listing these routes, use the literal constant
@@ -311,5 +306,5 @@ files, issue reports, or screenshots.
 | What if I don't want GitHub OAuth? | Set `DISABLE_GITHUB_OAUTH=true` in `.env.local` |
 | What if I forget my GitHub setup? | Boot exits with the actionable error — set `AUTH_SECRET` or set `DISABLE_GITHUB_OAUTH=true` |
 | Container deploy? | Generate file outside, mount `.chainglass/` as a volume |
-| Bypass routes? | Always-public: `/api/health`, `/api/auth`, `/api/bootstrap/verify`, `/api/bootstrap/forget`. Sink routes (composite `requireLocalAuth` gate in handler): `/api/event-popper`, `/api/tmux/events`. |
+| Bypass routes? | Always-public: `/api/health`, `/api/auth`, `/api/bootstrap/verify`, `/api/bootstrap/forget`. Localhost CLI routes (remote-view) pass the proxy with `X-Local-Token` and are gated by `requireLocalAuth` in the handler. |
 | Multi-user host? | Currently unsafe; file is world-readable. Use container isolation. |

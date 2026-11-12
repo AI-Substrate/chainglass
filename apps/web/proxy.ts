@@ -18,13 +18,9 @@ import {
 /**
  * Plan 084 Phase 3 — bootstrap-cookie stage of the proxy chain. Returns:
  *  - `'bypass'` — short-circuit BOTH the cookie gate and the Auth.js chain.
- *    Two flavours of bypass live here (see `AUTH_BYPASS_ROUTES` in
- *    `cookie-gate.ts` for the locked contract): always-public routes
- *    (`/api/health`, `/api/auth/*`, `/api/bootstrap/verify`,
- *    `/api/bootstrap/forget`) AND localhost-gated-by-their-own-check sink
- *    routes (`/api/event-popper` — Phase 7 F001 fix
- *    after minih flagged that the proxy was blocking token-only CLI flows
- *    before the route handlers' composite `requireLocalAuth` could run).
+ *    See `AUTH_BYPASS_ROUTES` in `cookie-gate.ts` for the locked contract
+ *    (always-public: `/api/health`, `/api/auth/*`, `/api/bootstrap/verify`,
+ *    `/api/bootstrap/forget`).
  *  - `'proceed'` — request passes the cookie gate and should fall
  *    through to the Auth.js chain (`DISABLE_AUTH` + `req.auth`).
  *  - a `NextResponse` — short-circuit the entire chain with that response
@@ -33,8 +29,7 @@ import {
  * Bypass routes MUST short-circuit BEFORE the accessor — so a
  * missing/unreadable `bootstrap-code.json` never blocks the recovery path
  * (the verify route is a bypass, and so is health). They MUST also skip
- * the Auth.js chain — bypassed sink routes have their own `requireLocalAuth`
- * composite gate that handles auth, so the proxy stays out of the way.
+ * the Auth.js chain.
  * For all other paths, resolve the active code+key and run the cookie gate.
  */
 export type BootstrapStageResult = 'bypass' | 'proceed' | NextResponse;

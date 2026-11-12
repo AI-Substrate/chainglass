@@ -11,7 +11,7 @@
  * The verb handlers take an injectable `request` seam so they unit-test without a
  * live server; `createRemoteViewRequest()` builds the production one.
  *
- * Pattern: `agent.command.ts` (Commander group) + `event-popper-client.ts` (auth).
+ * Pattern: `agent.command.ts` (Commander group) + Plan 084 `X-Local-Token` auth.
  * Per Finding 04 (one-line registry addition) + Finding 08 (CLI hits the proxy routes).
  */
 import { join } from 'node:path';

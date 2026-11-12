@@ -12,13 +12,13 @@
  * @example
  * const fake = createFakeMultiplexedSSEFactory();
  * render(
- *   <MultiplexedSSEProvider channels={['event-popper']} eventSourceFactory={fake.factory}>
+ *   <MultiplexedSSEProvider channels={['workflows']} eventSourceFactory={fake.factory}>
  *     <TestConsumer />
  *   </MultiplexedSSEProvider>
  * );
  * act(() => {
  *   fake.simulateOpen();
- *   fake.simulateChannelMessage('event-popper', 'question-asked', { questionId: 'q1' });
+ *   fake.simulateChannelMessage('workflows', 'workflow-changed', { graphSlug: 'q1' });
  * });
  */
 

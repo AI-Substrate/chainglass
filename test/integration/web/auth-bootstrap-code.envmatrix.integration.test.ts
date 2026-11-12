@@ -44,7 +44,7 @@ import { requireLocalAuth } from '../../../apps/web/src/lib/local-auth';
 
 import { setupBootstrapTestEnv } from '../../helpers/auth-bootstrap-code';
 
-const URL = 'http://localhost:3000/api/event-popper/list';
+const URL = 'http://localhost:3000/api/remote-view/sessions';
 const FLAG_KEY = '__CHAINGLASS_DISABLE_AUTH_WARNED';
 
 interface ReqOptions {
@@ -261,49 +261,10 @@ describe('Plan 084 env-var matrix (Phase 7 T007)', () => {
     expect(result.ok).toBe(false);
   });
 
-  // ── F002 fix (Phase 7 minih review) — token-only proxy-stage regression ──
-  // Plan 084 Phase 5 originally gated /api/event-popper/* through the cookie
-  // gate first, then requireLocalAuth in the route handler.
-  // T008 surfaced that a CLI request sending only X-Local-Token (no cookie)
-  // got 401 bootstrap-required from the proxy BEFORE requireLocalAuth could
-  // run. F001 fix: add /api/event-popper to AUTH_BYPASS_ROUTES so the route
-  // handler is the single gate. These tests guard that contract — keep the
-  // env-matrix suite from going green when the proxy regresses.
+  // ── F001 (Phase 7 minih review) — no over-broad proxy bypass ──
+  // Only the always-public routes in AUTH_BYPASS_ROUTES bypass the proxy.
 
-  it('F001 regression: /api/event-popper/* is a proxy bypass — token-only requests reach requireLocalAuth (AC-17)', async () => {
-    process.env.AUTH_SECRET = 'test-secret-f001-12345678901234567890';
-
-    // Token-only request to a sink — no cookie. Proxy MUST bypass.
-    const sinkReq = new NextRequest('http://localhost:3000/api/event-popper/list', {
-      method: 'GET',
-      headers: {
-        'x-forwarded-for': '127.0.0.1',
-        host: 'localhost:3000',
-        'x-local-token': 'whatever-token-value',
-      },
-    });
-    const proxyDecision = await bootstrapCookieStage(sinkReq);
-    expect(proxyDecision).toBe('bypass');
-  });
-
-  it('F001 regression: /api/event-popper sub-paths are bypassed (prefix matching)', async () => {
-    process.env.AUTH_SECRET = 'test-secret-f001b-1234567890123456789';
-    for (const path of [
-      '/api/event-popper/list',
-      '/api/event-popper/ask-question',
-      '/api/event-popper/answer-question/some-id',
-      '/api/event-popper/send-alert',
-      '/api/event-popper/dismiss/some-id',
-    ]) {
-      const req = new NextRequest(`http://localhost:3000${path}`, {
-        method: 'GET',
-        headers: { host: 'localhost:3000' },
-      });
-      expect(await bootstrapCookieStage(req)).toBe('bypass');
-    }
-  });
-
-  it('F001 regression: non-sink API routes are STILL gated by the cookie (no over-broad bypass)', async () => {
+  it('F001 regression: non-public API routes are STILL gated by the cookie (no over-broad bypass)', async () => {
     process.env.AUTH_SECRET = 'test-secret-f001c-1234567890123456789';
     // /api/events (SSE — needs session auth, NOT a sink) — must NOT bypass
     const sseReq = new NextRequest('http://localhost:3000/api/events/some-channel', {

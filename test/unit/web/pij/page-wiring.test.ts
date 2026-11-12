@@ -37,7 +37,8 @@ describe('pij page wiring', () => {
   });
 
   it('keeps the channel list inside the mux ceiling', async () => {
-    // MAX_CHANNELS is 20; this adds the 7th. Asserted so a future phase adding channels has to look.
+    // MAX_CHANNELS is 20; pij is one of 6 (event-popper left with plan 067's removal). Asserted so a
+    // future phase adding channels has to look.
     const layout = await source('apps/web/app/(dashboard)/workspaces/[slug]/layout.tsx');
     const channelList = /WORKSPACE_SSE_CHANNELS\s*=\s*\[([\s\S]*?)\]/.exec(layout)?.[1] ?? '';
     // Comments inside the array name channels too (the `pij` entry documents itself) — strip them,
@@ -45,7 +46,7 @@ describe('pij page wiring', () => {
     const channels = channelList.replace(/\/\/.*$/gm, '').match(/'[a-z-]+'/g) ?? [];
 
     expect(channels.length).toBeLessThanOrEqual(20);
-    expect(channels.length).toBe(7);
+    expect(channels.length).toBe(6);
   });
 
   it('adds exactly one workspace nav row, pointing at the page', async () => {

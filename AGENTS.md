@@ -613,15 +613,6 @@ The `scripts/` directory contains demo, test, and utility scripts. See `scripts/
 
 **When adding, removing, or renaming scripts, update `scripts/scripts.md` to keep the index current.**
 
-### Event Popper CLI (Plan 067)
-
-When you need to ask the user a question or send them a notification, use the Event Popper CLI. Requires the Chainglass dev server running (`just dev`).
-
-- **Ask a question**: `cg question ask --type <text|single|multi|confirm> --text "Your question"` — blocks until answered (default 10 min timeout)
-- **Send an alert**: `cg alert send --text "Your notification"` — fire-and-forget, returns immediately
-- **Check answer**: `cg question get <questionId>` — retrieve answer for a previously asked question
-- Run `cg question --help` and `cg alert --help` for full usage details, examples, and all available options.
-
 ### SSE Multiplexing (Plan 072)
 
 Migrated workspace channel consumers share a **single multiplexed EventSource** connection per browser tab via `/api/events/mux`. Do NOT use the legacy `useSSE` hook (deleted) or create new direct EventSource connections.

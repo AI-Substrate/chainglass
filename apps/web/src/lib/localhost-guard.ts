@@ -2,10 +2,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 /**
- * Plan 067: Event Popper Infrastructure
- *
- * Localhost-only guard for `/api/event-popper/*` routes.
- * These routes bypass authentication but must only be callable from localhost.
+ * Localhost-only guard. `isLocalhostRequest` backs `requireLocalAuth` and the
+ * proxy; `localhostGuard` gates routes that must only be callable from
+ * localhost (e.g. `/api/workspaces/[slug]/files/open`).
  *
  * Security rules:
  * 1. Reject any request with X-Forwarded-For header (proxy bypass prevention)
@@ -52,7 +51,7 @@ export function isLocalhostRequest(request: NextRequest): boolean {
 }
 
 /**
- * Guard middleware for event-popper routes.
+ * Guard middleware for localhost-only routes.
  * Returns a 403 response if the request is not from localhost.
  * Returns null if the request is allowed (caller should proceed).
  */

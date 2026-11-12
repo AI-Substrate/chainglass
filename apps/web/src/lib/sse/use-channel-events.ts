@@ -60,7 +60,7 @@ interface ChannelBuffer<T> {
  * Each hook invocation maintains its own independent message array.
  * This is critical for index cursor patterns (Finding 06 — cursor compatibility).
  *
- * @param channel — SSE channel name (e.g. 'event-popper', 'file-changes')
+ * @param channel — SSE channel name (e.g. 'workflows', 'file-changes')
  * @param options — { maxMessages: number } (default 1000, 0 = unlimited)
  */
 export function useChannelEvents<T extends MultiplexedSSEMessage = MultiplexedSSEMessage>(

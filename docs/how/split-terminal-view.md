@@ -9,7 +9,7 @@ Behind both modes is **one xterm** (FX012). The floating overlay, the inline spl
 
 ## Where the toggle lives
 
-The Mode A↔B toggle is a `<PanelRight>` icon button in **ExplorerPanel.rightActions** on the browse page top bar — alongside History and the Question Popper indicator. Its accessible label is `Toggle inline terminal` and it carries `role="switch"`.
+The Mode A↔B toggle is a `<PanelRight>` icon button in **ExplorerPanel.rightActions** on the browse page top bar — alongside History. Its accessible label is `Toggle inline terminal` and it carries `role="switch"`.
 
 The toggle is **browse-page only** — it does not appear on `/terminal`, `/workflows/*`, `/settings`, the dashboard home, or any other route.
 

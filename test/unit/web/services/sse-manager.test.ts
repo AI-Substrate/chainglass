@@ -239,22 +239,19 @@ describe('SSEManager', () => {
       - Contract: broadcast(channelId, eventType, data) includes channel: channelId in JSON payload
       - Usage Notes: Parse the JSON from the SSE data frame, check channel field
       - Quality Contribution: Core multiplexing contract — without this, demux is impossible
-      - Worked Example: broadcast('event-popper', 'question-asked', {id:'q1'}) → payload has channel:'event-popper'
+      - Worked Example: broadcast('workflows', 'workflow-changed', {id:'q1'}) → payload has channel:'workflows'
       */
       const controller = new FakeController();
-      manager.addConnection(
-        'event-popper',
-        controller as unknown as ReadableStreamDefaultController
-      );
+      manager.addConnection('workflows', controller as unknown as ReadableStreamDefaultController);
 
-      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
+      manager.broadcast('workflows', 'workflow-changed', { graphSlug: 'q1' });
 
       const content = controller.getAllContent();
       const jsonStr = content.replace(/^data: /, '').replace(/\n\n$/, '');
       const payload = JSON.parse(jsonStr);
-      expect(payload.channel).toBe('event-popper');
-      expect(payload.type).toBe('question-asked');
-      expect(payload.questionId).toBe('q1');
+      expect(payload.channel).toBe('workflows');
+      expect(payload.type).toBe('workflow-changed');
+      expect(payload.graphSlug).toBe('q1');
     });
 
     it('should include channel in primitive data payloads', () => {
@@ -315,17 +312,17 @@ describe('SSEManager', () => {
         muxController as unknown as ReadableStreamDefaultController
       );
       manager.addConnection(
-        'event-popper',
+        'workflows',
         muxController as unknown as ReadableStreamDefaultController
       );
 
       manager.broadcast('file-changes', 'file-changed', { path: 'README.md' });
-      manager.broadcast('event-popper', 'question-asked', { questionId: 'q1' });
+      manager.broadcast('workflows', 'workflow-changed', { graphSlug: 'q1' });
 
       const chunks = muxController.getDecodedChunks();
       expect(chunks.length).toBe(2);
       expect(chunks[0]).toContain('"channel":"file-changes"');
-      expect(chunks[1]).toContain('"channel":"event-popper"');
+      expect(chunks[1]).toContain('"channel":"workflows"');
     });
   });
 

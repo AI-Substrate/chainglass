@@ -14,7 +14,7 @@ Real-time server→client events in Chainglass use a **multiplexed SSE architect
 │  └─────────────────┘    └─────────────────┘    └──────────────────┘    │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │ /api/events/mux?channels=event-popper,file-changes,...         │    │
+│  │ /api/events/mux?channels=file-changes,work-unit-state,...      │    │
 │  │ Single SSE endpoint — registers controller across all channels │    │
 │  │ 15s heartbeat — survives proxy idle timeouts                   │    │
 │  └─────────────────────────────────────────────────────────────────┘    │
@@ -47,7 +47,7 @@ Add your channel name to `WORKSPACE_SSE_CHANNELS` in `apps/web/app/(dashboard)/w
 
 ```typescript
 const WORKSPACE_SSE_CHANNELS = [
-  'event-popper', 'file-changes', 'work-unit-state',
+  'file-changes', 'work-unit-state',
   'workflows', 'unit-catalog',
   'my-new-channel',  // ← add here
 ] as const;
@@ -108,7 +108,7 @@ function MyComponent() {
 | Pattern | Hook | Use When | Examples |
 |---------|------|----------|----------|
 | Accumulation | `useChannelEvents` | Need message array, index cursors, batch filtering | ServerEventRoute, useWorkflowSSE |
-| Fire-and-forget | `useChannelCallback` | Each event triggers a side-effect | QuestionPopper, FileChange |
+| Fire-and-forget | `useChannelCallback` | Each event triggers a side-effect | FileChange |
 
 ## Server-Side: SSEManager
 

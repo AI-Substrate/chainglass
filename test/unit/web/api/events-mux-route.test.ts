@@ -134,7 +134,7 @@ describe('/api/events/mux route handler', () => {
       - Worked Example: ?channels=file-changes → 200 with SSE headers
       */
       const deps = makeDeps();
-      const request = makeRequest('/api/events/mux?channels=file-changes,event-popper');
+      const request = makeRequest('/api/events/mux?channels=file-changes,workflows');
 
       const response = await handleMuxRequest(request, deps);
 
@@ -155,9 +155,7 @@ describe('/api/events/mux route handler', () => {
       */
       const manager = new SSEManager();
       const deps = makeDeps({ manager });
-      const request = makeRequest(
-        '/api/events/mux?channels=file-changes,file-changes,event-popper'
-      );
+      const request = makeRequest('/api/events/mux?channels=file-changes,file-changes,workflows');
 
       const response = await handleMuxRequest(request, deps);
       expect(response.status).toBe(200);
@@ -166,7 +164,7 @@ describe('/api/events/mux route handler', () => {
       await new Promise((r) => setTimeout(r, 10));
 
       expect(manager.getConnectionCount('file-changes')).toBe(1);
-      expect(manager.getConnectionCount('event-popper')).toBe(1);
+      expect(manager.getConnectionCount('workflows')).toBe(1);
     });
   });
 
@@ -183,14 +181,14 @@ describe('/api/events/mux route handler', () => {
       const manager = new SSEManager();
       const deps = makeDeps({ manager });
       const request = makeRequest(
-        '/api/events/mux?channels=file-changes,event-popper,work-unit-state'
+        '/api/events/mux?channels=file-changes,workflows,work-unit-state'
       );
 
       await handleMuxRequest(request, deps);
       await new Promise((r) => setTimeout(r, 10));
 
       expect(manager.getConnectionCount('file-changes')).toBe(1);
-      expect(manager.getConnectionCount('event-popper')).toBe(1);
+      expect(manager.getConnectionCount('workflows')).toBe(1);
       expect(manager.getConnectionCount('work-unit-state')).toBe(1);
     });
   });
@@ -209,14 +207,14 @@ describe('/api/events/mux route handler', () => {
       */
       const manager = new SSEManager();
       const deps = makeDeps({ manager });
-      const request = makeRequest('/api/events/mux?channels=file-changes,event-popper');
+      const request = makeRequest('/api/events/mux?channels=file-changes,workflows');
 
       await handleMuxRequest(request, deps);
       await new Promise((r) => setTimeout(r, 10));
 
       // Verify registered
       expect(manager.getConnectionCount('file-changes')).toBe(1);
-      expect(manager.getConnectionCount('event-popper')).toBe(1);
+      expect(manager.getConnectionCount('workflows')).toBe(1);
 
       // Simulate what the abort handler does: removeControllerFromAllChannels
       // We can't trigger abort via NextRequest in test env, but the handler

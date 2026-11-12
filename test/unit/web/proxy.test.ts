@@ -57,17 +57,12 @@ function reqLike(pathname: string, cookieValue?: string) {
 }
 
 describe('AUTH_BYPASS_ROUTES (locked contract)', () => {
-  it('contains exactly 5 routes — 4 always-public + 1 sink prefix (Phase 7 F001 fix)', () => {
-    // Plan 084 Phase 7 (minih review F001): /api/event-popper bypasses at the
-    // proxy layer because its route handlers run requireLocalAuth (composite
-    // localhost + cookie OR X-Local-Token). Keeping the cookie gate in front
-    // blocked CLI X-Local-Token flows, which broke AC-17 at the system level.
+  it('contains exactly the 4 always-public routes', () => {
     expect(AUTH_BYPASS_ROUTES).toEqual([
       '/api/health',
       '/api/auth',
       '/api/bootstrap/verify',
       '/api/bootstrap/forget',
-      '/api/event-popper',
     ]);
   });
 });
@@ -84,12 +79,8 @@ describe('isBypassPath', () => {
     // in AUTH_BYPASS_ROUTES) — only cookie-authenticated callers can mint
     // tokens. Locks the contract from being mistakenly broadened.
     ['/api/bootstrap/asset-token', false],
-    ['/api/events', false], // SSE — needs session auth, NOT a sink
-    // Phase 7 F001: sink prefixes bypass at proxy; route handler enforces
-    // requireLocalAuth. AC-17 system-level CLI flow now passes.
-    ['/api/event-popper', true],
-    ['/api/event-popper/list', true],
-    ['/api/event-popper/ask-question', true],
+    ['/api/events', false], // SSE — needs session auth
+    ['/api/remote-view/sessions', false], // requireLocalAuth in handler; proxy still gates
     ['/api/terminal/token', false], // Phase 4 defence-in-depth — proxy + handler
     ['/dashboard', false],
     ['/login', false],
@@ -145,16 +136,6 @@ describe('evaluateCookieGate', () => {
   it('(e1) /api/events with valid cookie → cookie-valid (proves layering)', () => {
     expect(evaluateCookieGate(reqLike('/api/events', VALID_COOKIE), codeAndKey)).toEqual({
       kind: 'cookie-valid',
-    });
-  });
-
-  // (f) Phase 7 F001 fix: /api/event-popper/* now bypasses at the proxy
-  //     layer; the route handler's requireLocalAuth is the single composite
-  //     gate (localhost + cookie OR X-Local-Token). This unblocks the AC-17
-  //     CLI flow that was system-level-broken under the original contract.
-  it('(f) /api/event-popper/list → bypass (Phase 7 F001 — sole gate is requireLocalAuth)', () => {
-    expect(evaluateCookieGate(reqLike('/api/event-popper/list'), codeAndKey)).toEqual({
-      kind: 'bypass',
     });
   });
 

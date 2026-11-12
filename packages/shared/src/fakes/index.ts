@@ -32,8 +32,6 @@ export { FakeWorkflowEventsService } from './fake-workflow-events.js';
 export { FakeWorkUnitStateService } from './fake-work-unit-state.js';
 // File Notes fake (Plan 071: PR View & File Notes)
 export { FakeNoteService } from './fake-note-service.js';
-// Question Popper fake (Plan 067: Event Popper)
-export { FakeQuestionPopperService } from './fake-question-popper.js';
 // SSE broadcasting fake (introduced by Plan 019, moved here when the agent
 // surface was removed — used by workflow execution and central notify tests)
 export { FakeSSEBroadcaster } from './fake-sse-broadcaster.js';

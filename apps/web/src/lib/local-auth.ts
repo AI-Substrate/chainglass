@@ -1,13 +1,13 @@
 /**
  * Plan 084 Phase 5 T002 — composite localhost + bootstrap-credential check for
- * sidecar HTTP sinks (`/api/event-popper/*`).
+ * local HTTP sinks called by the CLI and other local processes (today: the
+ * Plan 088 remote-view routes via `remote-view-auth.ts`).
  *
- * Closes Finding 02 (sinks formerly relied on `localhostGuard` alone — any
- * loopback process could post). Now requires localhost AND either:
+ * Requires localhost AND either:
  *   - the bootstrap cookie (browser flow — set by the verify route after the
  *     operator types the code), OR
  *   - the `X-Local-Token` header (CLI flow — value pulled from
- *     this server's `.chainglass/servers/<port>.json` per Plan 067 / Finding 06).
+ *     this server's `.chainglass/servers/<port>.json`, Finding 06).
  *
  * Mirrors Phase 4's `UpgradeAuthResult` discriminated-union pattern (drop
  * `closeReason` — route handlers return JSON, not WS close frames).
