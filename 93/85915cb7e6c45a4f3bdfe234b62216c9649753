@@ -1,0 +1,19 @@
+.harness/government/reports/nav-speed-review-2026-11-12.md
+  s_265a8653f75285::t_065d991fa7445d 110-117,141-143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9385915cb7e6c45a4f3bdfe234b62216c9649753",
+  "prompts": {},
+  "sessions": {
+    "s_265a8653f75285": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5c6ac40d-2afc-4f35-8603-dbd526d9140f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
