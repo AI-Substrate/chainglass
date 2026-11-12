@@ -1,0 +1,47 @@
+apps/web/app/api/bootstrap/verify/route.ts
+  s_805240d3d0aacd::t_2072dd1783830a 21-24,39,105-106
+docs/domains/_platform/auth/domain.md
+  s_ee855675d13418::t_42c76b68fc3781 145,233
+docs/how/auth/bootstrap-code.md
+  s_ee855675d13418::t_af0aa80cb867e5 286-289
+test/integration/web/auth-bootstrap-code.integration.test.ts
+  s_805240d3d0aacd::t_1cea1ec8e10089 31-35,43,50,84,89
+test/integration/web/auth-bootstrap-code.log-audit.integration.test.ts
+  s_2dcffca6d7e40e::t_5fb28caf7fb101 75
+test/integration/web/auth-bootstrap-code.popup.integration.test.tsx
+  s_2dcffca6d7e40e::t_231a752f5b6609 34-38,64,72-73,75,87,140,219
+test/unit/web/api/bootstrap/verify.test.ts
+  s_ee855675d13418::t_793ad0de613a17 28-32,37-38,44-45,66,81,178-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d98cb715ae8611c127d3b380a66e077c1e8b7f39",
+  "prompts": {},
+  "sessions": {
+    "s_2dcffca6d7e40e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abfad9e5-ed0c-4a0b-ad52-c484d85a3798",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_805240d3d0aacd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "8b48eaec-e9b5-4e2c-9eb2-e154f068d3dc",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_ee855675d13418": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "988a2b82-5644-4651-8743-ea746ba66cbf",
+        "model": "claude-opus-5.5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
