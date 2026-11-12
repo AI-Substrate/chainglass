@@ -1,0 +1,28 @@
+docs/how/dev/dev-beside-prod.md
+  h_9e71e8b09f7cf2 43,55-60,71-77
+justfile
+  h_9e71e8b09f7cf2 39-42,55-66,153-154,161,166,173-174,181-182,192-216
+harness/agents/folder-preview-qa/prompt.md
+  s_b8c448fa8de3a5::t_1d303e0214d691 28-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "aef6f8943bf00bcd4f4945b442048ac6959b97fa",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_b8c448fa8de3a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d9e0b71-4241-4a30-8d92-0ecc453f2248",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
