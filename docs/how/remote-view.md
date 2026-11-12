@@ -146,10 +146,9 @@ The daemon gates the WS upgrade on the request `Origin`, and NextAuth must trust
 host. Set these in `.env.local` (see `apps/web/.env.example`):
 
 ```bash
-# Comma-separated Origin allowlist. The web server hands it to streamd (as
-# CG_REMOTE_VIEW__ALLOWED_ORIGINS) when it spawns it. Include BOTH the localhost dev origin and the
-# HTTPS host. (Never set CG_REMOTE_VIEW__* in the web server's env: its config loader rejects them.)
-CHAINGLASS_REMOTE_VIEW_ORIGINS=http://localhost:3000,https://remote.example.com
+# Comma-separated Origin allowlist. The web server spawns streamd inheriting its process.env, so
+# setting it here propagates to the daemon. Include BOTH the localhost dev origin and the HTTPS host.
+CG_REMOTE_VIEW__ALLOWED_ORIGINS=http://localhost:3000,https://remote.example.com
 
 # NextAuth/Auth.js behind the proxy — trust the forwarded host and pin the public URL, or the
 # session/callback URLs resolve to the internal origin and auth breaks over HTTPS.
@@ -191,7 +190,7 @@ on them. Codes are shown in the viewport error card as a badge.
 | **secure-context overlay** | The page isn't a secure context (plain-http LAN), so WebCodecs is off. Not a daemon error — a UI gate. | Open over `http://localhost:3000`, or set up HTTPS ([above](#https--lan-access)). |
 | **`E_BUNDLE_MISSING`** | The signed `streamd` bundle isn't installed (a web-route 503). | Run `just streamd-install` on the host Mac. |
 | **`E_PERMISSION`** | Screen Recording (capture) — or Accessibility (input) — is not granted. | Grant it: Privacy & Security → Screen Recording / Accessibility, then Re-check / re-attach. |
-| **`E_ORIGIN`** (close 4402) | The browser's `Origin` isn't in the daemon allowlist. | Add the origin to `CHAINGLASS_REMOTE_VIEW_ORIGINS` (include the HTTPS host for LAN); `just prod-https` sets it for the TLS front. |
+| **`E_ORIGIN`** (close 4402) | The browser's `Origin` isn't in the daemon allowlist. | Add the origin to `CG_REMOTE_VIEW__ALLOWED_ORIGINS` (include the HTTPS host for LAN); `just prod-https` sets it for the TLS front. |
 | **`E_AUTH`** (close 4401) | The stream JWT was missing/invalid/expired. | Re-attach (tokens are short-lived, 300s, minted per connect). Check the system clock if it persists. |
 | **`E_VERSION`** | The daemon and web build disagree on protocol version. | Update + reinstall the daemon (`just streamd-install`) so it matches the web build; the web side respawns a stale daemon gracefully. |
 | **`E_WINDOW_GONE`** | The streamed window was closed. | Pick another window; the viewport shows "Window closed", never a silent black frame. |

@@ -12,12 +12,19 @@ const MAX_NESTING_DEPTH = 4;
  *
  * Each segment must:
  * - Start with uppercase letter (A-Z)
- * - Contain only uppercase letters and digits (no single underscores within segment)
+ * - Contain only uppercase letters, digits and single underscores between words
  *
- * Valid segments: DEBUG, SAMPLE, TIMEOUT, A, B123
- * Invalid segments: sample, SAMPLE_NAME (single underscore), 123ABC (starts with digit)
+ * Valid segments: DEBUG, SAMPLE, TIMEOUT, A, B123, MAX_RETRIES, REMOTE_VIEW
+ * Invalid segments: sample, 123ABC (starts with digit)
+ *
+ * Multi-word segments are valid because the CG_ prefix is shared: besides config overrides
+ * (`CG_<SECTION>__<FIELD>`, ADR-0003, e.g. `CG_MYFEATURE__MAX_RETRIES`), chainglass passes plain
+ * process variables under it (`CG_SERVER_PORT`, `CG_NODE_ID`, `CG_REMOTE_VIEW__DAEMON_PORT`). They
+ * parse to keys no config section registers (`server_port`, `remote_view`), which the loader
+ * ignores; rejecting them made the web server and the CLI fail to load config whenever one was in
+ * the environment.
  */
-const SEGMENT_PATTERN = /^[A-Z][A-Z0-9]*$/;
+const SEGMENT_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
 
 /**
  * Set a value in a nested object using a path array.
@@ -140,10 +147,10 @@ function validateEnvKey(key: string): void {
       );
     }
 
-    // Each segment must match pattern (start with letter, only uppercase and digits)
+    // Each segment must match pattern (start with a letter; uppercase words joined by single _)
     if (!SEGMENT_PATTERN.test(segment)) {
       throw new ConfigurationError(
-        `Invalid environment variable: ${key}\nEach segment must start with an uppercase letter and contain only uppercase letters and digits.\nInvalid segment: '${segment}'`
+        `Invalid environment variable: ${key}\nEach segment must start with an uppercase letter and contain only uppercase letters, digits and single underscores.\nInvalid segment: '${segment}'`
       );
     }
   }

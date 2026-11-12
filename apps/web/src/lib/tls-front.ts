@@ -320,10 +320,10 @@ function splitOrigins(value: string | undefined): string[] | null {
 /**
  * The Origin allowlist a server behind the front needs: what it allows today plus
  * `https://<cert name>:<httpsPort>`. The terminal sidecar's TERMINAL_WS_ALLOWED_ORIGINS and
- * streamd's allowlist (CHAINGLASS_REMOTE_VIEW_ORIGINS on the web server, which hands it to streamd
- * at spawn) each REPLACE that server's defaults, so the defaults are spelled out here: an
- * operator's own value if set, else the sidecar's default (localhost, 127.0.0.1 and every LAN IPv4
- * on the Next port) or streamd's (localhost and 127.0.0.1 on the Next port).
+ * streamd's CG_REMOTE_VIEW__ALLOWED_ORIGINS (set on the web server, whose env streamd inherits)
+ * each REPLACE that server's defaults, so the defaults are spelled out here: an operator's own
+ * value if set, else the sidecar's default (localhost, 127.0.0.1 and every LAN IPv4 on the Next
+ * port) or streamd's (localhost and 127.0.0.1 on the Next port).
  */
 export async function allowedOriginsBehindFront(
   server: 'terminal' | 'remote-view',
@@ -343,7 +343,7 @@ export async function allowedOriginsBehindFront(
       ...buildDefaultAllowedOrigins(String(opts.nextPort), false, getLocalNetworkHosts()),
     ];
   } else {
-    base = splitOrigins(opts.env.CHAINGLASS_REMOTE_VIEW_ORIGINS) ?? [
+    base = splitOrigins(opts.env.CG_REMOTE_VIEW__ALLOWED_ORIGINS) ?? [
       `http://localhost:${opts.nextPort}`,
       `http://127.0.0.1:${opts.nextPort}`,
     ];

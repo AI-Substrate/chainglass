@@ -169,8 +169,8 @@ _require-certs:
 # - CHAINGLASS_FRONT_SECRET: fresh per launch. Next trusts the front's X-Forwarded-For (client
 #   address for the rate limit, https for cookie Secure) only with it; Next and the front get it,
 #   the terminal sidecar (`env -u`) and Next's children never do (socket-peer.ts).
-# - TERMINAL_WS_ALLOWED_ORIGINS (sidecar) / CHAINGLASS_REMOTE_VIEW_ORIGINS (Next hands it to
-#   streamd): each server's usual allowlist plus https://<cert name>:HTTPS_PORT
+# - TERMINAL_WS_ALLOWED_ORIGINS (sidecar) / CG_REMOTE_VIEW__ALLOWED_ORIGINS (streamd, which
+#   inherits Next's env): each server's usual allowlist plus https://<cert name>:HTTPS_PORT
 #   (`tls-front.ts origins`).
 _https-env next_port:
     #!/usr/bin/env bash
@@ -180,7 +180,7 @@ _https-env next_port:
     REMOTE_VIEW=$(PORT={{next_port}} pnpm -s tsx apps/web/src/lib/tls-front.ts origins remote-view)
     echo "export CHAINGLASS_FRONT_SECRET=$SECRET"
     echo "export TERMINAL_WS_ALLOWED_ORIGINS=$TERMINAL"
-    echo "export CHAINGLASS_REMOTE_VIEW_ORIGINS=$REMOTE_VIEW"
+    echo "export CG_REMOTE_VIEW__ALLOWED_ORIGINS=$REMOTE_VIEW"
 
 # Build all packages
 build:

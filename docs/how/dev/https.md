@@ -116,11 +116,9 @@ for the rate limit.
 The terminal sidecar and streamd check each WebSocket upgrade's `Origin`. Behind the front the
 browser sends `https://<name>:<HTTPS_PORT>`, which neither allows by default. Each allowlist is
 an env var that REPLACES the server's defaults: `TERMINAL_WS_ALLOWED_ORIGINS` for the sidecar,
-and `CHAINGLASS_REMOTE_VIEW_ORIGINS` for streamd (Next hands it to streamd as
-`CG_REMOTE_VIEW__ALLOWED_ORIGINS` when it spawns it; Next itself must never carry a
-`CG_REMOTE_VIEW__*` variable, because its config loader rejects the name and its services fail to
-start). The HTTPS recipes set each to the server's usual list plus `https://<name>:<HTTPS_PORT>`
-for every DNS name and IPv4 address in the certificate:
+and `CG_REMOTE_VIEW__ALLOWED_ORIGINS` for streamd (set on Next, whose env streamd inherits). The
+HTTPS recipes set each to the server's usual list plus `https://<name>:<HTTPS_PORT>` for every DNS
+name and IPv4 address in the certificate:
 
 ```bash
 PORT=3000 HTTPS_PORT=3030 pnpm tsx apps/web/src/lib/tls-front.ts origins terminal

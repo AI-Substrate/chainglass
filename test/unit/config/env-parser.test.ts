@@ -154,6 +154,27 @@ describe('parseEnvVars', () => {
     });
   });
 
+  describe('multi-word segments (single underscores)', () => {
+    it('parses CG_ process variables and multi-word fields to snake_case keys', () => {
+      /*
+      Test Doc:
+      - Why: CG_ is shared by config overrides and plain process variables (CG_SERVER_PORT,
+        CG_NODE_ID, CG_REMOTE_VIEW__DAEMON_PORT). Rejecting a multi-word segment made the web server
+        and the CLI fail to load config whenever one of them was in the environment (B9).
+      - Contract: single underscores join words inside a segment; __ still nests.
+      - Worked Example: CG_REMOTE_VIEW__DAEMON_PORT=4501 → { remote_view: { daemon_port: '4501' } }
+      */
+      process.env.CG_SERVER_PORT = '3010';
+      process.env.CG_REMOTE_VIEW__DAEMON_PORT = '4501';
+      process.env.CG_MYFEATURE__MAX_RETRIES = '10';
+
+      expect(parseEnvVars()).toEqual({
+        server_port: '3010',
+        remote_view: { daemon_port: '4501' },
+        myfeature: { max_retries: '10' },
+      });
+    });
+  });
   describe('depth limits', () => {
     it('should reject nesting > MAX_DEPTH (4)', () => {
       /*

@@ -143,19 +143,23 @@ CG_<SECTION>__<FIELD>=value
 
 - Prefix: `CG_`
 - Section separator: `__` (double underscore)
-- Keys are UPPERCASE
+- Keys are UPPERCASE; a single `_` joins words inside a section or field
+- Each segment is lowercased as-is: `CG_MYFEATURE__MAX_RETRIES` sets `myfeature.max_retries`
+  (not `maxRetries`), so a schema field must be snake_case to be overridable
 - Values are strings (Zod handles coercion)
+- `CG_` is also used by plain process variables (`CG_SERVER_PORT`, `CG_NODE_ID`,
+  `CG_REMOTE_VIEW__DAEMON_PORT`); they parse to keys no config section registers and are ignored
 
 ### Examples
 
 ```bash
-# Override myFeature.enabled
+# Override myfeature.enabled
 export CG_MYFEATURE__ENABLED=false
 
-# Override myFeature.maxRetries
+# Override myfeature.max_retries
 export CG_MYFEATURE__MAX_RETRIES=10
 
-# Override myFeature.endpoint
+# Override myfeature.endpoint
 export CG_MYFEATURE__ENDPOINT=https://prod.example.com
 ```
 

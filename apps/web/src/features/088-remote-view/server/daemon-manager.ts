@@ -75,14 +75,6 @@ export interface DaemonManagerConfig {
   bootstrapPath: string;
   /** `CG_REMOTE_VIEW__DAEMON_PORT` override (ADR-0003); defaults to `webPort + 1501`. */
   daemonPortOverride?: number;
-  /**
-   * streamd's Origin allowlist (comma-separated), handed to it as `CG_REMOTE_VIEW__ALLOWED_ORIGINS`
-   * at spawn; unset = streamd's own default. The web server reads it from
-   * `CHAINGLASS_REMOTE_VIEW_ORIGINS`: it cannot carry `CG_REMOTE_VIEW__*` in its own env, because
-   * the config loader (`env.parser.ts`) rejects the multi-word `REMOTE_VIEW` segment and the
-   * server fails to start its services.
-   */
-  allowedOrigins?: string;
   /** Protocol version this web build speaks; a mismatch drives a respawn. */
   expectedProtocolVersion: number;
   /** How long to wait for a spawned daemon to become healthy (default 5000ms). */
@@ -240,9 +232,6 @@ export function createDaemonManager(
       {
         ...targetEnv,
         CG_REMOTE_VIEW__DAEMON_PORT: String(spawnPort),
-        ...(config.allowedOrigins
-          ? { CG_REMOTE_VIEW__ALLOWED_ORIGINS: config.allowedOrigins }
-          : {}),
       }
     );
   }
