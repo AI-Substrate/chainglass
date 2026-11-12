@@ -1,0 +1,16 @@
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-trace-idle-31d1584.dd.json
+  h_9e71e8b09f7cf2 1-35
+.harness/government/community/roles/reviewer/outputs/2026-11/12-verdict-plan-nav-trace-idle-31d1584.dd.md
+  h_9e71e8b09f7cf2 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "f3315cae077364317e18b52ca45afcb5a1176588",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
