@@ -1,0 +1,19 @@
+test/unit/config/documented-env-vars.test.ts
+  s_111bcb598c8684::t_52ce544bb310a1 68-80,82-85,88-95,98-102,104-105,107-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5063fa4c0b6af4d84b50e858b616e8e0406aff05",
+  "prompts": {},
+  "sessions": {
+    "s_111bcb598c8684": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c412afea-4b9f-45d5-9797-c115656f25e0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
