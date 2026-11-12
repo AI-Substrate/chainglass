@@ -95,3 +95,7 @@ brief hangs seen while a prod tab loads (8-tab test: 3 of 8 tabs waited 5 to 8 s
   peer address it saw (its own socket) in a way the guard trusts, and a remote client through the front
   must still fail the guard. Jordan: xterm.js and its sidecar must keep working throughout, over both
   `ws://` (HTTP :3000) and `wss://` (HTTPS :3030 / 4530).
+- (prime, 2026-11-12, from crane's terminal proof) Prod over plain http on the LAN cannot sign in: the
+  bootstrap cookie is `Secure` whenever NODE_ENV=production (`apps/web/app/api/bootstrap/verify/route.ts:98`).
+  Jordan ruled HTTP keeps working, so: `Secure` follows the request's real protocol (or the TLS front's
+  `X-Forwarded-Proto`, trusted only from the front), never NODE_ENV. Check every other cookie set the same way.
