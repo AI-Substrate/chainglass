@@ -1,0 +1,21 @@
+.harness/government/community/roles/reviewer/holders.dd.json
+  s_f3eefcae664ebd::t_0e0bd52639a1e1 1-28
+.harness/government/community/roles/reviewer/holders.dd.md
+  s_f3eefcae664ebd::t_36b94e1c48c5a2 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "8470a61f6b552a91f94753c818c4be1e3edcbe69",
+  "prompts": {},
+  "sessions": {
+    "s_f3eefcae664ebd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eded6b2b-f28c-4a03-b038-1a74528e1755",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
