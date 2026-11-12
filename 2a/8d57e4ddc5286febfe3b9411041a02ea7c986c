@@ -1,0 +1,16 @@
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-remote-view-auth.dd.json
+  h_9e71e8b09f7cf2 1-33
+.harness/government/community/roles/coder/outputs/2026-11/12-deliverable-plan-remote-view-auth.dd.md
+  h_9e71e8b09f7cf2 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "2a8d57e4ddc5286febfe3b9411041a02ea7c986c",
+  "prompts": {},
+  "humans": {
+    "h_9e71e8b09f7cf2": {
+      "author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
