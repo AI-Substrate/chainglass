@@ -27,6 +27,12 @@ and delete the branch.
   One build per change; the reviewer reuses it.
 - Measure the PRD's "Done when" for your item before and after, on the same machine, and quote the
   load average next to each timing (load is high; say so rather than drop the number).
+- **Full runs are serialized** (prime, 2026-11-12 11:20): one chainglass `just fft`/`just test` at a time,
+  only at 1-min load < 60, in the order the prime gives; announce start/finish and hand on with "fft done".
+- **Browser proofs never reach Jordan's tmux** (incident 2026-11-12, ctx-max): a spare-port server's
+  terminal sidecar talks to the default tmux server, where Jordan's sessions live, and the overlay can
+  attach one after a client-side navigation. Start your spare-port Next server and sidecar with `TMUX`
+  unset and `TMUX_TMPDIR=/tmp/<slug>-tmux`, and make scratch sessions there.
 
 ## Other coders in flight (do not edit their files without telling the prime)
 
