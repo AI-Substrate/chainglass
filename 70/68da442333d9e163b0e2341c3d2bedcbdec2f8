@@ -1,0 +1,21 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-https-ae18b1254-block-five-p2-findings.dd.json
+  s_f1481fd66bf0b3::t_8dd23aba7fde3f 1-28
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_f1481fd66bf0b3::t_cb6dc5b5a07945 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "7068da442333d9e163b0e2341c3d2bedcbdec2f8",
+  "prompts": {},
+  "sessions": {
+    "s_f1481fd66bf0b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c783ba0-c2ff-4929-bf33-edb0ca01010c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
