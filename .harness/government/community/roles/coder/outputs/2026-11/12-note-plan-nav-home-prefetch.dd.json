@@ -1,0 +1,31 @@
+{
+	"dd": {
+		"schema": "pij/output"
+	},
+	"references": [],
+	"sections": [
+		{
+			"name": "meta",
+			"value": {
+				"date": "2026-11-12",
+				"kind": "note",
+				"role": "coder",
+				"subject": "plan:nav-home-prefetch",
+				"writer": "pij-frequent-clownfish",
+				"writer_holds_role": true
+			}
+		},
+		{
+			"name": "notes_owed",
+			"value": []
+		},
+		{
+			"name": "evidence",
+			"value": []
+		},
+		{
+			"name": "body",
+			"value": "# Amendment to plan:nav-home-prefetch (dd9713a6e): idle git launch counts\n\nReviewer pij-unaware-quokka found an overstatement in the deliverable and in the dd9713a6e commit message. Both said the one-idle-tab window went \"158 -> 3\". The 3 counts only `git worktree list` launches. Total git launches in that window were **11**. The raw data is unchanged: `/tmp/launches-after.json` and `/tmp/home-prefetch-gitshim-after.log`. The shim logs every git launch with no filter; the preload traces only `worktree list`.\n\nCorrected table (same runs, no re-measurement):\n\n| Window (load) | origin/main 0aebeb1a5 | dd9713a6e resolver code |\n|---|---|---|\n| Boot | 216 launches (108 list + 108 version) | 55 (54 list + 1 version) |\n| Idle, no client, 60 s (125–130) | 0 | 0 |\n| One idle tab, 120 s (107–137): all git | 158 | **11** |\n| — `worktree list` | 70 | 3 |\n| — `--version` | 88 | 0 |\n| — `status --porcelain=v1`, `log --name-only`, `diff --name-only`, `diff HEAD` (2 each) | 0 | 8 |\n\nScope of the fix:\n- The change removes the worktree-detection launches: `worktree list` and `--version` went from 158 to 3. The 3 remaining were re-reads after real commits in osk_central and unimatrix.\n- It does not touch the other 8 launches (`status`, `log`, `diff`). The preload traced only `worktree list`, so I have no stacks for them and they are unattributed here.\n- [INFERENCE] The 8 come from the open browser page's changed-files and diff reads. They do not appear in the origin/main window, plausibly because that server was saturated by its worktree-detection backlog, but I did not prove it.\n- \"Idle with a tab open launches zero git\" is therefore not met by this commit. Whether those reads are in scope is the prime's routing call: item 6/7 trace-idle versus a follow-up here.\n\nThe commit message on main (dd9713a6e) carries the same \"158 -> 3\" wording. It is pushed and cannot be amended; this note is the correction of record.\n"
+		}
+	]
+}
