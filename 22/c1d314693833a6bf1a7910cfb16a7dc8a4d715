@@ -1,0 +1,31 @@
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-localhost-guard-pass-and.dd.json
+  s_67c308b9d6ad31::t_ae0ad0a71b334a 1-27
+.harness/government/community/roles/reviewer/memory/2026-11-12-2026-11-12-localhost-guard-pass-and.dd.md
+  s_6f34923d46bf53::t_ac9fdb263a0c3e 1-40
+.harness/government/community/roles/reviewer/memory/INDEX.md
+  s_67c308b9d6ad31::t_0959cbf7c592a2 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "22c1d314693833a6bf1a7910cfb16a7dc8a4d715",
+  "prompts": {},
+  "sessions": {
+    "s_67c308b9d6ad31": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d91e3965-577c-4509-a008-22aa7f641f5b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    },
+    "s_6f34923d46bf53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bccd12e4-4a44-4f35-99bd-f66eefaad71b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Jordan Knight <jakkaj@gmail.com>"
+    }
+  }
+}
