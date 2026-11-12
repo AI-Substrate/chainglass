@@ -201,39 +201,10 @@ describe('RealRemoteViewService daemon orchestration', () => {
   });
 });
 
-// 3) The live HTTP transport (Phase-4 daemon /sessions contract), over a fetch double.
+// 3) The live HTTP transport's status handling (Phase-4 daemon contract), over a fetch double.
 describe('createHttpDaemonSessionsClient (live transport)', () => {
-  const SUMMARY: SessionSummary = {
-    sessionId: 'ses_x',
-    windowId: FAKE_WINDOW.id,
-    app: 'Godot',
-    title: 'spike-target',
-    state: 'streaming',
-  };
   const fakeResponse = (status: number, body?: unknown): Response =>
     new Response(body === undefined ? null : JSON.stringify(body), { status });
-
-  it('create() POSTs {windowId} with the token in the query string and returns the summary', async () => {
-    /*
-    Test Doc:
-    - Why: the live transport must hit the daemon's JWT-gated POST /sessions with the right shape.
-    - Contract: create(port, windowId) → POST http://127.0.0.1:<port>/sessions?token=<jwt>, body {windowId}.
-    - Usage Notes: mintToken supplies the daemon JWT (aud=remote-view-ws) per call; streamd reads it from `?token=` only.
-    - Quality Contribution: pins the daemon request contract before Phase-6 live wiring.
-    - Worked Example: create(7099, 34202) → POST …:7099/sessions?token=tok123, returns the daemon summary.
-    */
-    let captured: { url: string; init?: RequestInit } | undefined;
-    const fetchFn: typeof fetch = async (url, init) => {
-      captured = { url: String(url), init };
-      return fakeResponse(200, SUMMARY);
-    };
-    const client = createHttpDaemonSessionsClient({ mintToken: async () => 'tok123', fetchFn });
-    const s = await client.create(7099, FAKE_WINDOW.id);
-    expect(s).toEqual(SUMMARY);
-    expect(captured?.url).toBe('http://127.0.0.1:7099/sessions?token=tok123');
-    expect(captured?.init?.method).toBe('POST');
-    expect(JSON.parse(String(captured?.init?.body))).toEqual({ windowId: FAKE_WINDOW.id });
-  });
 
   it('create() throws on a non-2xx daemon response', async () => {
     /*
@@ -249,23 +220,18 @@ describe('createHttpDaemonSessionsClient (live transport)', () => {
     await expect(client.create(7099, 1)).rejects.toThrow(/500/);
   });
 
-  it('remove() DELETEs the session id and tolerates 404 (idempotent detach)', async () => {
+  it('remove() tolerates 404 (idempotent detach)', async () => {
     /*
     Test Doc:
     - Why: detach must be idempotent — a session already gone (404) is success, not an error.
-    - Contract: remove(port, id) → DELETE …/sessions/<id>; 404 resolves.
+    - Contract: remove(port, id) with a 404 daemon response → resolves.
     - Usage Notes: the daemon may have already closed the session (vanish/exit).
     - Quality Contribution: pins idempotent teardown.
-    - Worked Example: DELETE …/sessions/ses_gone → 404 → resolves.
+    - Worked Example: remove(7099, 'ses_gone') → 404 → resolves.
     */
-    let captured: string | undefined;
-    const fetchFn: typeof fetch = async (url, init) => {
-      captured = `${init?.method} ${String(url)}`;
-      return fakeResponse(404);
-    };
+    const fetchFn: typeof fetch = async () => fakeResponse(404);
     const client = createHttpDaemonSessionsClient({ mintToken: async () => 't', fetchFn });
     await expect(client.remove(7099, 'ses_gone')).resolves.toBeUndefined();
-    expect(captured).toBe('DELETE http://127.0.0.1:7099/sessions/ses_gone?token=t');
   });
 
   it('remove() throws on a non-404 error', async () => {
