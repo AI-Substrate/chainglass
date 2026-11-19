@@ -51,6 +51,7 @@ import { NEW_WINDOW_AGENTS, type NewWindowAgent } from '../lib/new-window-agents
 import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
 import { matchesQuery } from '../lib/window-overview';
+import { recencyHeat, useWindowRecency } from '../lib/window-recency';
 import type { ConnectionStatus } from '../types';
 import { ConnectionStatusBadge } from './connection-status-badge';
 import { ContextFillBar } from './context-fill-bar';
@@ -98,6 +99,9 @@ export function TerminalPaneHeader({
     selectWindow,
     newWindow,
   } = useTerminalSingleton();
+  // Recency heat bar along each button's top edge: full on the active window, fading after.
+  const activeWindowId = windows.find((w) => w.active)?.id ?? null;
+  const { lastSelected, now: recencyNow } = useWindowRecency(sessionName, activeWindowId);
   // "+" at the end of the strip: pick an agent, name the window, create and select it.
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [newAgent, setNewAgent] = useState<NewWindowAgent | null>(null);
@@ -259,6 +263,7 @@ export function TerminalPaneHeader({
                     ? `idle ${idleLabel}`
                     : null;
               const context = window.context ? contextLabel(window.context) : null;
+              const heat = window.active ? 1 : recencyHeat(lastSelected[window.id], recencyNow);
               return (
                 <Tooltip key={`${window.id}:${window.index}`}>
                   <TooltipTrigger asChild>
@@ -271,6 +276,16 @@ export function TerminalPaneHeader({
                       data-output-active={outputActive ? 'true' : 'false'}
                       className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
                     >
+                      {heat > 0 ? (
+                        // Recency heat: the button's overflow-hidden + rounded clips this to
+                        // the button's own corners. Drawn before the agent mark so it sits under it.
+                        <span
+                          aria-hidden="true"
+                          data-recency-heat={heat.toFixed(2)}
+                          className="absolute inset-x-0 top-0 h-[2px] bg-sky-500"
+                          style={{ opacity: heat }}
+                        />
+                      ) : null}
                       {agent ? (
                         <span
                           aria-hidden="true"
