@@ -1,98 +1,78 @@
 'use client';
 
 /**
- * Window recency heat: how recently this browser had each tmux window selected. The window
- * strip draws a thin bar along each button's top edge whose strength fades from full (selected
- * now) to nothing over RECENCY_FADE_MS.
+ * Window recency heat: the order in which this browser visited each tmux window. The window
+ * strip draws a thin bar along each button's top edge in RECENCY_STEPS distinct strengths:
+ * the active window is strongest, the one visited before it a step weaker, and so on; windows
+ * further back than RECENCY_STEPS get no bar at all.
  *
  * Per-viewer by design: stored in localStorage keyed by session, so it survives reloads but is
- * never shared. Storage can be missing or throw (private mode, blocked site data); the heat
+ * never shared. Storage can be missing or throw (private mode, blocked site data); the order
  * then lasts only for the page's lifetime.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-/** How long a window takes to fade from full heat to none. Tune here. */
-export const RECENCY_FADE_MS = 30 * 60 * 1000;
-/** How often the bars re-fade while nothing else changes. */
-const TICK_MS = 30 * 1000;
+/** How many windows get a bar (the active one included). Tune here. */
+export const RECENCY_STEPS = 8;
+/** Opacity of the weakest visible step; the strongest is 1. */
+const WEAKEST_OPACITY = 0.2;
 const STORAGE_PREFIX = 'chainglass:terminal-window-recency:';
 
-/** 1 at `lastSelectedMs === now`, falling linearly to 0 at RECENCY_FADE_MS old. */
-export function recencyHeat(lastSelectedMs: number | undefined, nowMs: number): number {
-  if (lastSelectedMs === undefined) return 0;
-  const age = nowMs - lastSelectedMs;
-  if (age <= 0) return 1;
-  return Math.max(0, 1 - age / RECENCY_FADE_MS);
+/**
+ * Bar strength for a window at `rank` in the visit order (0 = active / most recent), or 0 when
+ * it is unranked or ranked beyond RECENCY_STEPS. Steps are evenly spaced from 1 down to
+ * WEAKEST_OPACITY so each one is distinguishable.
+ */
+export function recencyHeat(rank: number): number {
+  if (rank < 0 || rank >= RECENCY_STEPS) return 0;
+  return 1 - (rank * (1 - WEAKEST_OPACITY)) / (RECENCY_STEPS - 1);
 }
 
-type RecencyMap = Record<string, number>;
+/** Move `windowId` to the front of `order`, keeping at most RECENCY_STEPS entries. */
+export function bumpRecency(order: readonly string[], windowId: string): string[] {
+  return [windowId, ...order.filter((id) => id !== windowId)].slice(0, RECENCY_STEPS);
+}
 
-function readStored(sessionName: string): RecencyMap {
+function readStored(sessionName: string): string[] {
   try {
     const raw = window.localStorage.getItem(STORAGE_PREFIX + sessionName);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
-    if (!parsed || typeof parsed !== 'object') return {};
-    const result: RecencyMap = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value === 'number') result[key] = value;
-    }
-    return result;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === 'string').slice(0, RECENCY_STEPS);
   } catch {
-    return {};
+    return [];
   }
 }
 
-function writeStored(sessionName: string, map: RecencyMap): void {
+function writeStored(sessionName: string, order: readonly string[]): void {
   try {
-    window.localStorage.setItem(STORAGE_PREFIX + sessionName, JSON.stringify(map));
+    window.localStorage.setItem(STORAGE_PREFIX + sessionName, JSON.stringify(order));
   } catch {
-    // Storage unavailable: heat stays in memory only.
+    // Storage unavailable: the order stays in memory only.
   }
 }
 
 /**
- * Tracks when each window (by tmux window id) was last the selected one. Callers draw the
- * active window at full heat; this hook stamps a window at the moment it STOPS being active
- * (and when it becomes active), so its fade starts when you leave it — whether you left by
- * clicking the strip or by a tmux key binding.
+ * Visit order of windows (by tmux window id), most recent first. The active window is moved to
+ * the front whenever it changes — whether by clicking the strip or by a tmux key binding.
  */
-export function useWindowRecency(
-  sessionName: string,
-  activeWindowId: string | null
-): { lastSelected: RecencyMap; now: number } {
-  const [lastSelected, setLastSelected] = useState<RecencyMap>({});
-  const [now, setNow] = useState(() => Date.now());
-  const previousActive = useRef<string | null>(null);
+export function useWindowRecency(sessionName: string, activeWindowId: string | null): string[] {
+  const [order, setOrder] = useState<string[]>([]);
 
   useEffect(() => {
-    setLastSelected(readStored(sessionName));
-    previousActive.current = null;
+    setOrder(readStored(sessionName));
   }, [sessionName]);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), TICK_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const left = previousActive.current;
-    previousActive.current = activeWindowId;
-    if (!activeWindowId && !left) return;
-    const stamp = Date.now();
-    setNow(stamp);
-    setLastSelected((prev) => {
-      // Drop entries that have fully faded so storage does not grow with closed windows.
-      const next: RecencyMap = {};
-      for (const [key, value] of Object.entries(prev)) {
-        if (recencyHeat(value, stamp) > 0) next[key] = value;
-      }
-      if (left) next[left] = stamp;
-      if (activeWindowId) next[activeWindowId] = stamp;
+    if (!activeWindowId) return;
+    setOrder((prev) => {
+      if (prev[0] === activeWindowId) return prev;
+      const next = bumpRecency(prev, activeWindowId);
       writeStored(sessionName, next);
       return next;
     });
   }, [sessionName, activeWindowId]);
 
-  return { lastSelected, now };
+  return order;
 }

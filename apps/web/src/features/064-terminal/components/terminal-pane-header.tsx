@@ -99,9 +99,10 @@ export function TerminalPaneHeader({
     selectWindow,
     newWindow,
   } = useTerminalSingleton();
-  // Recency heat bar along each button's top edge: full on the active window, fading after.
+  // Recency heat bar along each button's top edge: strongest on the active window, one step
+  // weaker per window visited before it, none beyond RECENCY_STEPS.
   const activeWindowId = windows.find((w) => w.active)?.id ?? null;
-  const { lastSelected, now: recencyNow } = useWindowRecency(sessionName, activeWindowId);
+  const recencyOrder = useWindowRecency(sessionName, activeWindowId);
   // "+" at the end of the strip: pick an agent, name the window, create and select it.
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [newAgent, setNewAgent] = useState<NewWindowAgent | null>(null);
@@ -263,7 +264,7 @@ export function TerminalPaneHeader({
                     ? `idle ${idleLabel}`
                     : null;
               const context = window.context ? contextLabel(window.context) : null;
-              const heat = window.active ? 1 : recencyHeat(lastSelected[window.id], recencyNow);
+              const heat = window.active ? 1 : recencyHeat(recencyOrder.indexOf(window.id));
               return (
                 <Tooltip key={`${window.id}:${window.index}`}>
                   <TooltipTrigger asChild>
