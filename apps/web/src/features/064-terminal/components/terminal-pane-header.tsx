@@ -102,7 +102,11 @@ export function TerminalPaneHeader({
   // Recency heat bar along each button's top edge: strongest on the active window, one step
   // weaker per window visited before it, none beyond RECENCY_STEPS.
   const activeWindowId = windows.find((w) => w.active)?.id ?? null;
-  const recencyOrder = useWindowRecency(sessionName, activeWindowId);
+  const { order: recencyOrder, unseen } = useWindowRecency(
+    sessionName,
+    windows.map((w) => w.id),
+    activeWindowId
+  );
   // "+" at the end of the strip: pick an agent, name the window, create and select it.
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [newAgent, setNewAgent] = useState<NewWindowAgent | null>(null);
@@ -286,6 +290,17 @@ export function TerminalPaneHeader({
                           className="absolute inset-x-0 top-0 h-[2px] bg-sky-500"
                           style={{ opacity: heat }}
                         />
+                      ) : null}
+                      {unseen.has(window.id) ? (
+                        // New since this viewer last looked; cleared by selecting it. Inset from
+                        // the right edge so it clears the context-fill bar.
+                        <span
+                          aria-hidden="true"
+                          data-window-new="true"
+                          className="absolute top-0 right-[4px] text-[8px] leading-none text-sky-500"
+                        >
+                          ★
+                        </span>
                       ) : null}
                       {agent ? (
                         <span

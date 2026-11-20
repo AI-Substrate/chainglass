@@ -3,7 +3,25 @@ import {
   RECENCY_STEPS,
   bumpRecency,
   recencyHeat,
+  updateKnown,
 } from '../../../../../apps/web/src/features/064-terminal/lib/window-recency';
+
+describe('updateKnown', () => {
+  it('first sight of a session marks everything open as known (no flood of new markers)', () => {
+    expect(updateKnown(null, ['@1', '@2'], '@1')).toEqual(['@1', '@2']);
+  });
+
+  it('a window that appears later stays unknown until it is selected', () => {
+    expect(updateKnown(['@1', '@2'], ['@1', '@2', '@3'], '@1')).toEqual(['@1', '@2']);
+    expect(updateKnown(['@1', '@2'], ['@1', '@2', '@3'], '@3')).toEqual(['@1', '@2', '@3']);
+  });
+
+  it('drops closed windows, and changes nothing while the list is still empty', () => {
+    expect(updateKnown(['@1', '@2'], ['@2'], '@2')).toEqual(['@2']);
+    expect(updateKnown(['@1'], [], null)).toEqual(['@1']);
+    expect(updateKnown(null, [], null)).toBeNull();
+  });
+});
 
 describe('recencyHeat', () => {
   it('is full for the most recent window and 0 for unranked ones', () => {

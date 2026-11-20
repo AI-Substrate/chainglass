@@ -34,34 +34,75 @@ export function bumpRecency(order: readonly string[], windowId: string): string[
   return [windowId, ...order.filter((id) => id !== windowId)].slice(0, RECENCY_STEPS);
 }
 
-function readStored(sessionName: string): string[] {
+/**
+ * Windows this viewer already knows about. `known === null` means this browser has never seen
+ * the session: everything currently open becomes known (no flood of "new" markers on first
+ * visit). Otherwise the active window becomes known (selecting it clears its marker), and
+ * windows that no longer exist are dropped so the list stays bounded. An empty `current`
+ * (still loading) changes nothing.
+ */
+export function updateKnown(
+  known: readonly string[] | null,
+  current: readonly string[],
+  activeWindowId: string | null
+): string[] | null {
+  if (current.length === 0) return known === null ? null : [...known];
+  if (known === null) return [...current];
+  const live = new Set(current);
+  const next = known.filter((id) => live.has(id));
+  if (activeWindowId && live.has(activeWindowId) && !next.includes(activeWindowId)) {
+    next.push(activeWindowId);
+  }
+  return next;
+}
+
+function readStored(sessionName: string, suffix = ''): unknown {
   try {
-    const raw = window.localStorage.getItem(STORAGE_PREFIX + sessionName);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is string => typeof id === 'string').slice(0, RECENCY_STEPS);
+    const raw = window.localStorage.getItem(STORAGE_PREFIX + suffix + sessionName);
+    return raw ? JSON.parse(raw) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
-function writeStored(sessionName: string, order: readonly string[]): void {
+function readStoredKnown(sessionName: string): string[] | null {
+  const parsed = readStored(sessionName, 'known:');
+  if (!Array.isArray(parsed)) return null;
+  return parsed.filter((id): id is string => typeof id === 'string');
+}
+
+function readStoredOrder(sessionName: string): string[] {
+  const parsed = readStored(sessionName);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((id): id is string => typeof id === 'string').slice(0, RECENCY_STEPS);
+}
+
+function writeStored(sessionName: string, value: readonly string[], suffix = ''): void {
   try {
-    window.localStorage.setItem(STORAGE_PREFIX + sessionName, JSON.stringify(order));
+    window.localStorage.setItem(STORAGE_PREFIX + suffix + sessionName, JSON.stringify(value));
   } catch {
-    // Storage unavailable: the order stays in memory only.
+    // Storage unavailable: the state stays in memory only.
   }
 }
 
 /**
- * Visit order of windows (by tmux window id), most recent first. The active window is moved to
- * the front whenever it changes — whether by clicking the strip or by a tmux key binding.
+ * Visit order of windows (by tmux window id), most recent first, plus the windows this viewer
+ * has not seen yet. The active window is moved to the front whenever it changes — whether by
+ * clicking the strip or by a tmux key binding — and stops being new.
  */
-export function useWindowRecency(sessionName: string, activeWindowId: string | null): string[] {
+export function useWindowRecency(
+  sessionName: string,
+  windowIds: readonly string[],
+  activeWindowId: string | null
+): { order: string[]; unseen: ReadonlySet<string> } {
   const [order, setOrder] = useState<string[]>([]);
+  // undefined = not yet read from storage for this session.
+  const [known, setKnown] = useState<string[] | null | undefined>(undefined);
+  const windowKey = windowIds.join(',');
 
   useEffect(() => {
-    setOrder(readStored(sessionName));
+    setOrder(readStoredOrder(sessionName));
+    setKnown(readStoredKnown(sessionName));
   }, [sessionName]);
 
   useEffect(() => {
@@ -74,5 +115,20 @@ export function useWindowRecency(sessionName: string, activeWindowId: string | n
     });
   }, [sessionName, activeWindowId]);
 
-  return order;
+  useEffect(() => {
+    if (known === undefined) return;
+    const next = updateKnown(known, windowKey ? windowKey.split(',') : [], activeWindowId);
+    if (next === null || (known !== null && next.join(',') === known.join(','))) return;
+    setKnown(next);
+    writeStored(sessionName, next, 'known:');
+  }, [sessionName, windowKey, activeWindowId, known]);
+
+  const unseen = new Set<string>();
+  if (known) {
+    const knownSet = new Set(known);
+    for (const id of windowIds) {
+      if (!knownSet.has(id) && id !== activeWindowId) unseen.add(id);
+    }
+  }
+  return { order, unseen };
 }
