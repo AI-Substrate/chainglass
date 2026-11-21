@@ -23,6 +23,7 @@
 
 import { usePdfExport } from '@/features/041-file-browser/hooks/use-pdf-export';
 import type { IPdfGenerator } from '@/features/041-file-browser/lib/pdf-generator';
+import { toRawFilePathUrl } from '@/features/041-file-browser/lib/raw-file-path-url';
 import { AsciiSpinner } from '@/features/_platform/panel-layout';
 import { ExternalLink, FileDown, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -233,7 +234,14 @@ export function HtmlViewer({
           </button>
         )}
         <a
-          href={src}
+          // Path-style so the page's relative references (data.js, img/…) resolve to its
+          // siblings when opened directly; falls back to the query-style URL.
+          href={
+            toRawFilePathUrl(
+              src,
+              typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+            ) ?? src
+          }
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
