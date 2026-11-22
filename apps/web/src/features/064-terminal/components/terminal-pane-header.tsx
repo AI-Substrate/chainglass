@@ -270,110 +270,113 @@ export function TerminalPaneHeader({
               const context = window.context ? contextLabel(window.context) : null;
               const heat = window.active ? 1 : recencyHeat(recencyOrder.indexOf(window.id));
               return (
-                <Tooltip key={`${window.id}:${window.index}`}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => selectWindow?.(window.id, window.index)}
-                      disabled={connectionStatus !== 'connected' || !selectWindow}
-                      aria-label={`Window ${window.index}: ${window.name}${seatLabel ? ` (${seatLabel})` : ''}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}${context ? `, ${context}` : ''}`}
-                      aria-pressed={window.active}
-                      data-output-active={outputActive ? 'true' : 'false'}
-                      className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
+                // Wrapper exists for the "new" badge: the button clips its own overflow, so a
+                // badge centred on its top-right corner has to live outside it.
+                <span key={`${window.id}:${window.index}`} className="relative flex shrink-0">
+                  {unseen.has(window.id) ? (
+                    // New since this viewer last looked; cleared by selecting it.
+                    <span
+                      aria-hidden="true"
+                      data-window-new="true"
+                      className="pointer-events-none absolute top-0 right-0 z-10 grid size-3 translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-sky-500 text-[7px] leading-none text-white ring-2 ring-background"
                     >
-                      {heat > 0 ? (
-                        // Recency heat: the button's overflow-hidden + rounded clips this to
-                        // the button's own corners. Drawn before the agent mark so it sits under it.
-                        <span
-                          aria-hidden="true"
-                          data-recency-heat={heat.toFixed(2)}
-                          className="absolute inset-x-0 top-0 h-[2px] bg-sky-500"
-                          style={{ opacity: heat }}
-                        />
-                      ) : null}
-                      {unseen.has(window.id) ? (
-                        // New since this viewer last looked; cleared by selecting it. Inset from
-                        // the right edge so it clears the context-fill bar.
-                        <span
-                          aria-hidden="true"
-                          data-window-new="true"
-                          className="absolute top-0 right-[4px] text-[8px] leading-none text-sky-500"
-                        >
-                          ★
-                        </span>
-                      ) : null}
-                      {agent ? (
-                        <span
-                          aria-hidden="true"
-                          className="absolute top-0 left-0 h-0 w-0 border-t-[7px] border-r-[7px] border-r-transparent"
-                          style={{ borderTopColor: agent.color }}
-                        />
-                      ) : null}
-                      {/* Five slices: the bottom one is the agent itself (green bar / magenta
+                      ★
+                    </span>
+                  ) : null}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => selectWindow?.(window.id, window.index)}
+                        disabled={connectionStatus !== 'connected' || !selectWindow}
+                        aria-label={`Window ${window.index}: ${window.name}${seatLabel ? ` (${seatLabel})` : ''}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}${context ? `, ${context}` : ''}`}
+                        aria-pressed={window.active}
+                        data-output-active={outputActive ? 'true' : 'false'}
+                        className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
+                      >
+                        {heat > 0 ? (
+                          // Recency heat: the button's overflow-hidden + rounded clips this to
+                          // the button's own corners. Drawn before the agent mark so it sits under it.
+                          <span
+                            aria-hidden="true"
+                            data-recency-heat={heat.toFixed(2)}
+                            className="absolute inset-x-0 top-0 h-[2px] bg-sky-500"
+                            style={{ opacity: heat }}
+                          />
+                        ) : null}
+                        {agent ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute top-0 left-0 h-0 w-0 border-t-[7px] border-r-[7px] border-r-transparent"
+                            style={{ borderTopColor: agent.color }}
+                          />
+                        ) : null}
+                        {/* Five slices: the bottom one is the agent itself (green bar / magenta
                           question / idle time); the four above rise with background-job CPU,
                           one per 25% of a core, as one solid column; a thin white line
                           separates it from the agent slice. */}
-                      {showBackground && fillQuarters === 0 ? (
-                        // Jobs exist but are barely working: a thin line says "something is running".
-                        <span
-                          aria-hidden="true"
-                          data-background-quarters={0}
-                          className="absolute inset-x-0 h-[3px] border-b border-white bg-emerald-500"
-                          style={{ bottom: AGENT_SLICE_PX }}
-                        />
-                      ) : null}
-                      {fillQuarters > 0 ? (
-                        <span
-                          aria-hidden="true"
-                          data-background-quarters={fillQuarters}
-                          className="absolute inset-x-0 border-b border-white bg-emerald-500"
-                          style={{
-                            bottom: AGENT_SLICE_PX,
-                            height: `calc((100% - ${AGENT_SLICE_PX}px) * ${fillQuarters / 4})`,
-                          }}
-                        />
-                      ) : null}
-                      <span className={`relative ${fillQuarters >= 3 ? 'text-white' : ''}`}>
-                        {window.index}
-                      </span>
-                      {idleLabel && !asking ? (
-                        <span className="relative mt-auto pb-0.5 text-[8px] font-normal opacity-80">
-                          {idleLabel}
+                        {showBackground && fillQuarters === 0 ? (
+                          // Jobs exist but are barely working: a thin line says "something is running".
+                          <span
+                            aria-hidden="true"
+                            data-background-quarters={0}
+                            className="absolute inset-x-0 h-[3px] border-b border-white bg-emerald-500"
+                            style={{ bottom: AGENT_SLICE_PX }}
+                          />
+                        ) : null}
+                        {fillQuarters > 0 ? (
+                          <span
+                            aria-hidden="true"
+                            data-background-quarters={fillQuarters}
+                            className="absolute inset-x-0 border-b border-white bg-emerald-500"
+                            style={{
+                              bottom: AGENT_SLICE_PX,
+                              height: `calc((100% - ${AGENT_SLICE_PX}px) * ${fillQuarters / 4})`,
+                            }}
+                          />
+                        ) : null}
+                        <span className={`relative ${fillQuarters >= 3 ? 'text-white' : ''}`}>
+                          {window.index}
                         </span>
+                        {idleLabel && !asking ? (
+                          <span className="relative mt-auto pb-0.5 text-[8px] font-normal opacity-80">
+                            {idleLabel}
+                          </span>
+                        ) : null}
+                        {outputActive || asking ? (
+                          <span
+                            className={`absolute inset-x-0 bottom-0 flex items-center justify-center text-[8px] font-medium text-white ${asking ? 'bg-fuchsia-500' : 'bg-emerald-500'}`}
+                            style={{ height: AGENT_SLICE_PX }}
+                          >
+                            {asking ? idleLabel : activeLabel}
+                          </span>
+                        ) : null}
+                        <ContextFillBar
+                          context={window.context}
+                          className="absolute inset-y-0 right-0 w-[3px]"
+                        />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-72">
+                      <div className="font-medium">{window.name}</div>
+                      {seatLabel ? <div className="font-mono opacity-80">{seatLabel}</div> : null}
+                      <div className="opacity-80">
+                        {[agent?.label, status, context].filter(Boolean).join(' · ')}
+                      </div>
+                      {background ? (
+                        <ul className="mt-1 space-y-0.5 tabular-nums">
+                          {background.jobs.map((job, index) => (
+                            // biome-ignore lint/suspicious/noArrayIndexKey: labels can repeat
+                            <li key={index} className="flex justify-between gap-3">
+                              <span className="truncate">{job.label}</span>
+                              <span className="opacity-80">{Math.round(job.cpu * 100)}%</span>
+                            </li>
+                          ))}
+                        </ul>
                       ) : null}
-                      {outputActive || asking ? (
-                        <span
-                          className={`absolute inset-x-0 bottom-0 flex items-center justify-center text-[8px] font-medium text-white ${asking ? 'bg-fuchsia-500' : 'bg-emerald-500'}`}
-                          style={{ height: AGENT_SLICE_PX }}
-                        >
-                          {asking ? idleLabel : activeLabel}
-                        </span>
-                      ) : null}
-                      <ContextFillBar
-                        context={window.context}
-                        className="absolute inset-y-0 right-0 w-[3px]"
-                      />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-72">
-                    <div className="font-medium">{window.name}</div>
-                    {seatLabel ? <div className="font-mono opacity-80">{seatLabel}</div> : null}
-                    <div className="opacity-80">
-                      {[agent?.label, status, context].filter(Boolean).join(' · ')}
-                    </div>
-                    {background ? (
-                      <ul className="mt-1 space-y-0.5 tabular-nums">
-                        {background.jobs.map((job, index) => (
-                          // biome-ignore lint/suspicious/noArrayIndexKey: labels can repeat
-                          <li key={index} className="flex justify-between gap-3">
-                            <span className="truncate">{job.label}</span>
-                            <span className="opacity-80">{Math.round(job.cpu * 100)}%</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </TooltipContent>
-                </Tooltip>
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
               );
             })}
             <Popover open={newMenuOpen} onOpenChange={setNewMenuOpen}>
