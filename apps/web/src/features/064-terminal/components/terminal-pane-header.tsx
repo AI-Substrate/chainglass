@@ -43,12 +43,26 @@ import {
   TerminalSquare,
   X,
 } from 'lucide-react';
-import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { AGENT_MARK } from '../lib/agent-kind';
 import { contextLabel } from '../lib/context-fill';
 import { copyTmuxBuffer } from '../lib/copy-tmux-buffer';
 import { NEW_WINDOW_AGENTS, type NewWindowAgent } from '../lib/new-window-agents';
 import { CHILD_BUSY_FRACTION, formatIdle } from '../lib/window-activity';
+import {
+  type DropIndicatorGeometry,
+  WINDOW_DRAG_THRESHOLD_PX,
+  computeWindowDropTarget,
+  resolveMoveTarget,
+} from '../lib/window-drag-reorder';
 import { getWindowNameValidationError } from '../lib/window-name-validation';
 import { matchesQuery } from '../lib/window-overview';
 import { recencyHeat, useWindowRecency } from '../lib/window-recency';
@@ -98,6 +112,7 @@ export function TerminalPaneHeader({
     windows,
     selectWindow,
     newWindow,
+    moveWindow,
   } = useTerminalSingleton();
   // Recency heat bar along each button's top edge: strongest on the active window, one step
   // weaker per window visited before it, none beyond RECENCY_STEPS.
@@ -182,6 +197,185 @@ export function TerminalPaneHeader({
     return () => observer.disconnect();
   }, []);
 
+  // Drag-to-reorder state for the tmux window strip. A drag only engages once the pointer moves
+  // past WINDOW_DRAG_THRESHOLD_PX so plain clicks still select and tooltips stay untouched.
+  const stripRef = useRef<HTMLElement>(null);
+  const windowButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const windowsRef = useRef(windows);
+  windowsRef.current = windows;
+  const moveWindowRef = useRef(moveWindow);
+  moveWindowRef.current = moveWindow;
+  const dragSessionRef = useRef<{
+    sourceKey: string;
+    sourceId: string;
+    sourceIndex: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    active: boolean;
+    cancelled: boolean;
+    slotIndex: number | null;
+  } | null>(null);
+  const suppressNextClickRef = useRef(false);
+  const suppressClickTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const [dragVisual, setDragVisual] = useState<{
+    sourceKey: string;
+    slotIndex: number;
+    indicator: DropIndicatorGeometry;
+  } | null>(null);
+
+  const armClickSuppression = useCallback(() => {
+    suppressNextClickRef.current = true;
+    clearTimeout(suppressClickTimerRef.current);
+    suppressClickTimerRef.current = setTimeout(() => {
+      suppressNextClickRef.current = false;
+      suppressClickTimerRef.current = undefined;
+    }, 0);
+  }, []);
+
+  const cancelWindowDrag = useCallback(() => {
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    dragSessionRef.current = null;
+    setDragVisual(null);
+  }, []);
+
+  useEffect(
+    () => () => {
+      cancelWindowDrag();
+      clearTimeout(suppressClickTimerRef.current);
+    },
+    [cancelWindowDrag]
+  );
+  // Attach window-level listeners only while a pointer press on a window button is tracked.
+  const attachDragListeners = useCallback(() => {
+    const updateDropTarget = (clientX: number, clientY: number) => {
+      const drag = dragSessionRef.current;
+      const stripEl = stripRef.current;
+      if (!drag || !stripEl) return;
+      const currentWindows = windowsRef.current;
+      const rects: DOMRect[] = [];
+      for (const w of currentWindows) {
+        const el = windowButtonRefs.current.get(`${w.id}:${w.index}`);
+        if (!el) return;
+        rects.push(el.getBoundingClientRect());
+      }
+      const target = computeWindowDropTarget(
+        clientX,
+        clientY,
+        rects,
+        stripEl.getBoundingClientRect()
+      );
+      if (!target) {
+        drag.slotIndex = null;
+        setDragVisual(null);
+        return;
+      }
+      drag.slotIndex = target.slotIndex;
+      setDragVisual({
+        sourceKey: drag.sourceKey,
+        slotIndex: target.slotIndex,
+        indicator: target.indicator,
+      });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerCancel, true);
+      window.removeEventListener('keydown', onKeyDown, true);
+      if (dragCleanupRef.current === cleanup) dragCleanupRef.current = null;
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = dragSessionRef.current;
+      if (!drag || drag.cancelled || event.pointerId !== drag.pointerId) return;
+      if (!drag.active) {
+        if (
+          Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) <
+          WINDOW_DRAG_THRESHOLD_PX
+        ) {
+          return;
+        }
+        drag.active = true;
+      }
+      event.preventDefault();
+      updateDropTarget(event.clientX, event.clientY);
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      const drag = dragSessionRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      cleanup();
+      dragSessionRef.current = null;
+      setDragVisual(null);
+      if (!drag.active) return;
+      // Swallow the synthetic click the browser dispatches in the same turn after mouseup.
+      armClickSuppression();
+      if (drag.cancelled || drag.slotIndex === null) return;
+      const currentWindows = windowsRef.current;
+      const sourcePos = currentWindows.findIndex(
+        (w) => w.id === drag.sourceId && w.index === drag.sourceIndex
+      );
+      if (sourcePos === -1) return;
+      const request = resolveMoveTarget(currentWindows, sourcePos, drag.slotIndex);
+      if (request) moveWindowRef.current?.(request);
+    };
+
+    const onPointerCancel = (event: PointerEvent) => {
+      const drag = dragSessionRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      cleanup();
+      cancelWindowDrag();
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const drag = dragSessionRef.current;
+      if (!drag || drag.cancelled) return;
+      if (drag.active) {
+        // Keep the overlay's Escape (close terminal) from firing when cancelling a drag, and
+        // wait for pointerup so releasing over the dragged button won't select it.
+        event.preventDefault();
+        event.stopPropagation();
+        drag.cancelled = true;
+        setDragVisual(null);
+        return;
+      }
+      cleanup();
+      cancelWindowDrag();
+    };
+
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', onPointerMove, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', onPointerCancel, true);
+    window.addEventListener('keydown', onKeyDown, true);
+  }, [armClickSuppression, cancelWindowDrag]);
+
+  const handleWindowPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>, windowId: string, windowIndex: number) => {
+      // Primary mouse/pen button only (touch dragging is out of scope); needs >1 window to reorder.
+      if (event.button !== 0 || event.pointerType === 'touch') return;
+      if (connectionStatus !== 'connected' || !moveWindow || windowsRef.current.length < 2) return;
+      dragSessionRef.current = {
+        sourceKey: `${windowId}:${windowIndex}`,
+        sourceId: windowId,
+        sourceIndex: windowIndex,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        active: false,
+        cancelled: false,
+        slotIndex: null,
+      };
+      attachDragListeners();
+    },
+    [attachDragListeners, connectionStatus, moveWindow]
+  );
+
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   // Null only before the singleton's lazily-mounted TerminalInner exists; the
@@ -225,8 +419,9 @@ export function TerminalPaneHeader({
             {sessionName}
           </span>
           <nav
+            ref={stripRef}
             aria-label="tmux windows"
-            className="flex min-w-0 flex-1 flex-wrap items-center gap-1"
+            className="relative flex min-w-0 flex-1 flex-wrap items-center gap-1"
           >
             {/* Wraps rather than clips: a busy session (unasphere had 30+) pushed the
                 later windows off the edge with no way to reach them. */}
@@ -286,13 +481,32 @@ export function TerminalPaneHeader({
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
+                        ref={(el) => {
+                          const key = `${window.id}:${window.index}`;
+                          if (el) windowButtonRefs.current.set(key, el);
+                          else windowButtonRefs.current.delete(key);
+                        }}
                         type="button"
-                        onClick={() => selectWindow?.(window.id, window.index)}
+                        onPointerDown={(event) =>
+                          handleWindowPointerDown(event, window.id, window.index)
+                        }
+                        onClick={() => {
+                          if (suppressNextClickRef.current) {
+                            suppressNextClickRef.current = false;
+                            return;
+                          }
+                          selectWindow?.(window.id, window.index);
+                        }}
                         disabled={connectionStatus !== 'connected' || !selectWindow}
                         aria-label={`Window ${window.index}: ${window.name}${seatLabel ? ` (${seatLabel})` : ''}${agent ? `, ${agent.label}` : ''}${status ? `, ${status}` : ''}${background ? `, ${background.jobs.length} background ${background.jobs.length === 1 ? 'job' : 'jobs'}` : ''}${context ? `, ${context}` : ''}`}
                         aria-pressed={window.active}
                         data-output-active={outputActive ? 'true' : 'false'}
-                        className={`relative flex h-7 min-w-8 shrink-0 flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone}`}
+                        data-dragging={
+                          dragVisual?.sourceKey === `${window.id}:${window.index}`
+                            ? 'true'
+                            : undefined
+                        }
+                        className={`relative flex h-7 min-w-8 shrink-0 select-none flex-col items-center overflow-hidden rounded px-1 pt-0.5 text-[11px] font-medium leading-none tabular-nums focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 ${tone} ${matchTone} ${dragVisual?.sourceKey === `${window.id}:${window.index}` ? 'opacity-40 cursor-grabbing' : ''}`}
                       >
                         {heat > 0 ? (
                           // Recency heat: the button's overflow-hidden + rounded clips this to
@@ -379,6 +593,19 @@ export function TerminalPaneHeader({
                 </span>
               );
             })}
+            {dragVisual ? (
+              <span
+                aria-hidden="true"
+                data-window-drop-indicator="true"
+                data-drop-slot={dragVisual.slotIndex}
+                className="pointer-events-none absolute z-30 w-[2px] -translate-x-1/2 rounded-full bg-black"
+                style={{
+                  left: `${dragVisual.indicator.left}px`,
+                  top: `${dragVisual.indicator.top}px`,
+                  height: `${dragVisual.indicator.height}px`,
+                }}
+              />
+            ) : null}
             <Popover open={newMenuOpen} onOpenChange={setNewMenuOpen}>
               <PopoverTrigger asChild>
                 <button

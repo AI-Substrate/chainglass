@@ -23,6 +23,7 @@ import { applyResyncOnStatus } from '../lib/resync-on-connect';
 import { resolveTerminalTheme } from '../lib/terminal-themes';
 import type {
   ConnectionStatus,
+  MoveWindow,
   NewWindow,
   RenameWindow,
   ResizePaneRequest,
@@ -69,6 +70,7 @@ interface TerminalInnerProps {
   onWindowsChange?: (windows: TerminalWindow[]) => void;
   onSelectWindowReady?: (select: ((windowId: string, windowIndex: number) => void) | null) => void;
   onNewWindowReady?: (create: NewWindow | null) => void;
+  onMoveWindowReady?: (move: MoveWindow | null) => void;
   /**
    * A file path on screen was clicked and is about to open in the file browser in this tab
    * (only paths the sidecar found on disk are links). The overlay folds itself away here.
@@ -89,6 +91,7 @@ export default function TerminalInner({
   onWindowsChange,
   onSelectWindowReady,
   onNewWindowReady,
+  onMoveWindowReady,
   onBeforeOpenPath,
 }: TerminalInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -304,6 +307,21 @@ export default function TerminalInner({
     onNewWindowReady?.(newWindow);
     return () => onNewWindowReady?.(null);
   }, [onNewWindowReady, newWindow]);
+
+  // The reply is the fresh window list with the moved window selected at its new index.
+  const moveWindow = useCallback<MoveWindow>(
+    (request) => {
+      onResizeModeExit?.();
+      send(JSON.stringify({ type: 'move-window', ...request }));
+      terminalRef.current?.focus();
+    },
+    [send, onResizeModeExit]
+  );
+
+  useEffect(() => {
+    onMoveWindowReady?.(moveWindow);
+    return () => onMoveWindowReady?.(null);
+  }, [onMoveWindowReady, moveWindow]);
 
   const resizePane = useCallback(
     (request: ResizePaneRequest) => {

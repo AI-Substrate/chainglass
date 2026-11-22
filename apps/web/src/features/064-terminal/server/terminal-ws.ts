@@ -260,7 +260,12 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
           }
           return;
         }
-        if (msg.type === 'windows' || msg.type === 'select-window' || msg.type === 'new-window') {
+        if (
+          msg.type === 'windows' ||
+          msg.type === 'select-window' ||
+          msg.type === 'new-window' ||
+          msg.type === 'move-window'
+        ) {
           let result: TerminalWindowsResult;
           try {
             if (!tmuxAvailable) throw new Error('tmux is not available');
@@ -270,7 +275,16 @@ export function createTerminalServer(deps: TerminalServerDeps): TerminalServer {
                   ? await manager.selectWindow(sessionName, msg.windowId, msg.windowIndex)
                   : msg.type === 'new-window'
                     ? await manager.newWindow(sessionName, cwd, msg.agent, msg.name)
-                    : await manager.listWindows(sessionName),
+                    : msg.type === 'move-window'
+                      ? await manager.moveWindow(
+                          sessionName,
+                          msg.sourceId,
+                          msg.sourceIndex,
+                          msg.targetId,
+                          msg.targetIndex,
+                          msg.position
+                        )
+                      : await manager.listWindows(sessionName),
             };
           } catch (error) {
             result = {

@@ -567,6 +567,67 @@ export class TmuxSessionManager {
   }
 
   /**
+   * Insert one numbered window link before (`-b`) or after (`-a`) another in the same session.
+   * tmux shifts conflicting later windows along (insert, never overwrite) and selects the moved
+   * window at its new index.
+   */
+  async moveWindow(
+    sessionName: string,
+    sourceId: string,
+    sourceIndex: number,
+    targetId: string,
+    targetIndex: number,
+    position: 'before' | 'after'
+  ): Promise<TerminalWindow[]> {
+    if (!this.validateSessionName(sessionName)) throw new Error('Invalid session name');
+    if (typeof sourceId !== 'string' || !/^@\d+$/.test(sourceId)) {
+      throw new Error('Invalid source window ID');
+    }
+    if (!Number.isSafeInteger(sourceIndex) || sourceIndex < 0) {
+      throw new Error('Invalid source window index');
+    }
+    if (typeof targetId !== 'string' || !/^@\d+$/.test(targetId)) {
+      throw new Error('Invalid target window ID');
+    }
+    if (!Number.isSafeInteger(targetIndex) || targetIndex < 0) {
+      throw new Error('Invalid target window index');
+    }
+    if (position !== 'before' && position !== 'after') {
+      throw new Error('Invalid move position');
+    }
+    if (sourceIndex === targetIndex) {
+      throw new Error('Source and target window must differ');
+    }
+    const windows = await this.listWindows(sessionName, true);
+    const source = windows.find(
+      (candidate) => candidate.id === sourceId && candidate.index === sourceIndex
+    );
+    if (!source) throw new Error('Source window is not in the attached session');
+    const target = windows.find(
+      (candidate) => candidate.id === targetId && candidate.index === targetIndex
+    );
+    if (!target) throw new Error('Target window is not in the attached session');
+    const srcRef = `=${sessionName}:${source.index}`;
+    const dstRef = `=${sessionName}:${target.index}`;
+    const flag = position === 'before' ? '-b' : '-a';
+    // Double -F guard verifies both indices still hold their expected window IDs in the same
+    // tmux command turn before moving, preventing index-reuse races.
+    const outcome = (
+      await this.exec('tmux', [
+        'if-shell',
+        '-F',
+        '-t',
+        srcRef,
+        `#{==:#{window_id},${source.id}}`,
+        `if-shell -F -t '${dstRef}' '#{==:#{window_id},${target.id}}' "move-window ${flag} -s '${srcRef}' -t '${dstRef}' ; display-message -p window-moved" 'display-message -p target-changed'`,
+        'display-message -p source-changed',
+      ])
+    ).trim();
+    if (outcome !== 'window-moved') throw new Error('The tmux window changed');
+    return this.listWindows(sessionName, true);
+  }
+
+  /**
    * Open a named window in the attached session, start `agent` in it, and select it (tmux's
    * new-window selects by default). The agent is typed into the window's own shell rather than
    * run as the window's process, so the user's shell profile loads (PATH for `~/.local/bin/omp`)

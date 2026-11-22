@@ -33,6 +33,7 @@ import {
 import { useTerminalOverlay } from '../hooks/use-terminal-overlay';
 import type {
   ConnectionStatus,
+  MoveWindow,
   NewWindow,
   RenameWindow,
   SendPrompt,
@@ -69,6 +70,7 @@ interface TerminalSingletonContextValue {
   windows: TerminalWindow[];
   selectWindow: ((windowId: string, windowIndex: number) => void) | null;
   newWindow: NewWindow | null;
+  moveWindow: MoveWindow | null;
 }
 
 const TerminalSingletonContext = createContext<TerminalSingletonContextValue | null>(null);
@@ -137,6 +139,10 @@ export function TerminalSingletonProvider({
   const registerNewWindow = useCallback((create: NewWindow | null) => {
     setNewWindow(() => create);
   }, []);
+  const [moveWindow, setMoveWindow] = useState<MoveWindow | null>(null);
+  const registerMoveWindow = useCallback((move: MoveWindow | null) => {
+    setMoveWindow(() => move);
+  }, []);
   const parkRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const slotsRef = useRef<Map<string, HTMLElement>>(new Map());
@@ -198,6 +204,7 @@ export function TerminalSingletonProvider({
       windows,
       selectWindow,
       newWindow,
+      moveWindow,
     }),
     [
       activate,
@@ -212,6 +219,7 @@ export function TerminalSingletonProvider({
       windows,
       selectWindow,
       newWindow,
+      moveWindow,
     ]
   );
 
@@ -234,6 +242,7 @@ export function TerminalSingletonProvider({
               onWindowsChange={setWindows}
               onSelectWindowReady={registerSelectWindow}
               onNewWindowReady={registerNewWindow}
+              onMoveWindowReady={registerMoveWindow}
               onBeforeOpenPath={closeTerminal}
             />
           </div>

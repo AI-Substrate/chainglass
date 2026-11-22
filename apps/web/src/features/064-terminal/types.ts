@@ -47,6 +47,7 @@ export type TerminalMessage =
   | ({ type: 'windows' } & Partial<TerminalWindowsResult>)
   | { type: 'select-window'; windowId: string; windowIndex: number }
   | { type: 'new-window'; agent: NewWindowAgent; name: string }
+  | ({ type: 'move-window' } & MoveWindowRequest)
   | ({ type: 'pane-layout' } & Partial<PaneLayoutResult>)
   | ({ type: 'resize-pane' } & ResizePaneRequest)
   | { type: 'sessions'; sessions: TerminalSession[] };
@@ -66,6 +67,21 @@ export type RenameWindow = (name: string) => void;
 
 /** Open a named tmux window running one of the "+" menu's agents, and select it. */
 export type NewWindow = (agent: NewWindowAgent, name: string) => void;
+
+/** Where to place a dragged tmux window relative to a neighbour window. */
+export type MoveWindowPosition = 'before' | 'after';
+
+/** Request payload for inserting one tmux window before or after another in the same session. */
+export interface MoveWindowRequest {
+  sourceId: string;
+  sourceIndex: number;
+  targetId: string;
+  targetIndex: number;
+  position: MoveWindowPosition;
+}
+
+/** Reorder a tmux window in the attached session (insert before or after target) and select it. */
+export type MoveWindow = (request: MoveWindowRequest) => void;
 
 /** Outcome of a rename-window control frame, as reported by the sidecar. */
 export interface RenameWindowResult {
