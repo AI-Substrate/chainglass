@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  NEW_STAR_LIMIT,
   RECENCY_STEPS,
   bumpRecency,
   recencyHeat,
@@ -20,6 +21,44 @@ describe('updateKnown', () => {
     expect(updateKnown(['@1', '@2'], ['@2'], '@2')).toEqual(['@2']);
     expect(updateKnown(['@1'], [], null)).toEqual(['@1']);
     expect(updateKnown(null, [], null)).toBeNull();
+  });
+
+  it('caps unseen windows at NEW_STAR_LIMIT newest, permanently promoting the oldest to known', () => {
+    expect(NEW_STAR_LIMIT).toBe(5);
+    const current = ['@1', '@2', '@3', '@4', '@5', '@6', '@7'];
+    const knownAfterSixNew = updateKnown(['@1'], current, '@1');
+    expect(knownAfterSixNew).toEqual(['@1', '@2']);
+
+    const unseen = current.filter((id) => !knownAfterSixNew?.includes(id));
+    expect(unseen).toEqual(['@3', '@4', '@5', '@6', '@7']);
+
+    // Selecting one of the five starred windows does not restore the star on dropped @2.
+    const knownAfterSelect = updateKnown(knownAfterSixNew, current, '@7');
+    expect(knownAfterSelect).toEqual(['@1', '@2', '@7']);
+    expect(current.filter((id) => !knownAfterSelect?.includes(id))).toEqual([
+      '@3',
+      '@4',
+      '@5',
+      '@6',
+    ]);
+  });
+
+  it('orders unseen windows by numeric tmux id, not list position or lexicographic order', () => {
+    // @10..@13 appear earlier in the strip than @8 and @9 (e.g. after drag-to-reorder), and
+    // lexicographically "@10" < "@8", "@9" — numeric id ordering must drop @8 (lowest id).
+    const current = ['@1', '@13', '@10', '@12', '@9', '@11', '@8'];
+    const known = updateKnown(['@1'], current, '@1');
+    expect(known).toEqual(['@1', '@8']);
+
+    const unseen = current.filter((id) => !known?.includes(id));
+    expect(new Set(unseen)).toEqual(new Set(['@9', '@10', '@11', '@12', '@13']));
+  });
+
+  it('promotes multiple excess unseen windows at once in oldest-first id order', () => {
+    const current = ['@1', '@2', '@3', '@4', '@5', '@6', '@7', '@8', '@9'];
+    const known = updateKnown(['@1'], current, '@1');
+    expect(known).toEqual(['@1', '@2', '@3', '@4']);
+    expect(current.filter((id) => !known?.includes(id))).toEqual(['@5', '@6', '@7', '@8', '@9']);
   });
 });
 

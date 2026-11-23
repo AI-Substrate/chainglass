@@ -15,6 +15,8 @@ import { useEffect, useState } from 'react';
 
 /** How many windows get a bar (the active one included). Tune here. */
 export const RECENCY_STEPS = 8;
+/** Maximum number of unseen windows that carry the "new" star badge at once. Tune here. */
+export const NEW_STAR_LIMIT = 5;
 /** Opacity of the weakest visible step; the strongest is 1. */
 const WEAKEST_OPACITY = 0.2;
 const STORAGE_PREFIX = 'chainglass:terminal-window-recency:';
@@ -34,12 +36,20 @@ export function bumpRecency(order: readonly string[], windowId: string): string[
   return [windowId, ...order.filter((id) => id !== windowId)].slice(0, RECENCY_STEPS);
 }
 
+/** Numeric order of a tmux window id (`@N`), or -1 for any unexpected format. */
+function windowIdNumber(id: string): number {
+  const match = /^@(\d+)$/.exec(id);
+  return match ? Number(match[1]) : -1;
+}
+
 /**
  * Windows this viewer already knows about. `known === null` means this browser has never seen
  * the session: everything currently open becomes known (no flood of "new" markers on first
- * visit). Otherwise the active window becomes known (selecting it clears its marker), and
- * windows that no longer exist are dropped so the list stays bounded. An empty `current`
- * (still loading) changes nothing.
+ * visit). Otherwise the active window becomes known (selecting it clears its marker), windows
+ * that no longer exist are dropped so the list stays bounded, and if more than NEW_STAR_LIMIT
+ * windows remain unseen, the oldest ones (lowest numeric tmux window id, never window index)
+ * become permanently known so at most NEW_STAR_LIMIT newest windows keep a star. An empty
+ * `current` (still loading) changes nothing.
  */
 export function updateKnown(
   known: readonly string[] | null,
@@ -49,9 +59,24 @@ export function updateKnown(
   if (current.length === 0) return known === null ? null : [...known];
   if (known === null) return [...current];
   const live = new Set(current);
-  const next = known.filter((id) => live.has(id));
-  if (activeWindowId && live.has(activeWindowId) && !next.includes(activeWindowId)) {
+  const next: string[] = [];
+  const nextSet = new Set<string>();
+  for (const id of known) {
+    if (live.has(id) && !nextSet.has(id)) {
+      next.push(id);
+      nextSet.add(id);
+    }
+  }
+  if (activeWindowId && live.has(activeWindowId) && !nextSet.has(activeWindowId)) {
     next.push(activeWindowId);
+    nextSet.add(activeWindowId);
+  }
+  const unseen = [...live].filter((id) => !nextSet.has(id));
+  if (unseen.length > NEW_STAR_LIMIT) {
+    unseen.sort((a, b) => windowIdNumber(a) - windowIdNumber(b));
+    for (const dropped of unseen.slice(0, unseen.length - NEW_STAR_LIMIT)) {
+      next.push(dropped);
+    }
   }
   return next;
 }
@@ -125,7 +150,10 @@ export function useWindowRecency(
 
   const unseen = new Set<string>();
   if (known) {
-    const knownSet = new Set(known);
+    // Apply the cap synchronously on render too so a 6th new window never flashes a 6th star
+    // before the effect commits the promoted known list.
+    const effectiveKnown = updateKnown(known, windowIds, activeWindowId) ?? known;
+    const knownSet = new Set(effectiveKnown);
     for (const id of windowIds) {
       if (!knownSet.has(id) && id !== activeWindowId) unseen.add(id);
     }

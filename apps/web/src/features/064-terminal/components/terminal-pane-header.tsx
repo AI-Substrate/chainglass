@@ -466,17 +466,18 @@ export function TerminalPaneHeader({
               const heat = window.active ? 1 : recencyHeat(recencyOrder.indexOf(window.id));
               return (
                 // Wrapper exists for the "new" badge: the button clips its own overflow, so a
-                // badge centred on its top-right corner has to live outside it.
+                // badge on its top-right corner has to live outside it.
                 <span key={`${window.id}:${window.index}`} className="relative flex shrink-0">
                   {unseen.has(window.id) ? (
                     // New since this viewer last looked; cleared by selecting it.
+                    // Sized so horizontal protrusion past the tile edge stays <= 3px including the
+                    // 1px ring (2px translate + 1px ring = 3px), fitting inside the strip's 4px
+                    // gap-1 without overlapping the neighbour tile's agent-colour corner triangle.
                     <span
                       aria-hidden="true"
                       data-window-new="true"
-                      className="pointer-events-none absolute top-0 right-0 z-10 grid size-3 translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-sky-500 text-[7px] leading-none text-white ring-2 ring-background"
-                    >
-                      ★
-                    </span>
+                      className="pointer-events-none absolute top-0 right-0 z-10 size-2 translate-x-[2px] -translate-y-1/2 rounded-full bg-sky-500 ring-1 ring-background"
+                    />
                   ) : null}
                   <Tooltip>
                     <TooltipTrigger asChild>
